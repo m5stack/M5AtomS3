@@ -1,33 +1,27 @@
-# M5Template-C-CPP
+# AtomS3 Library
 
-### SKU:xxx
+English | [中文](README_cn.md)
 
-Template for M5Stack C and CPP projects.
+<img src="https://static-cdn.m5stack.com/resource/docs/products/core/AtomS3/img-91894638-80df-4827-892e-cb8f50cf1041.jpg" alt="M5Atom Lite" width="350" height="350">
 
-## Steps
+* **For the Detailed documentation of AtomS3, please [Click here](https://docs.m5stack.com/en/core/AtomS3)**
 
-1. Change [clang format check path](./.github/workflows/clang-format-check.yml#L9-L15).
-2. Add License content to [LICENSE](/LICENSE).
-3. Change this [README.md](./README.md#L1-L8).
-4. Change link on line 78 of [bug-report.yml](./.github/ISSUE_TEMPLATE/bug-report.yml#L78).
+## Description
 
-<!-- Example
-# M5Unit-ENV
+`AtomS3` is a highly integrated programmable controller based on `ESP32-S3` main control, which integrates ESP32-S3 main control, integrated `WiFi` function, and `8M` on-chip FLASH; `0.85` inch `IPS screen`; `Programmable button function` at the bottom of the screen; Built-in 5V to 3.3V circuit, 6-axis gyro sensor `MPU6886`, on-board `Type-C` interface, power supply and firmware download, one `HY2.0-4P` expansion port, `6 GPIOs and power pins` reserved at the bottom to facilitate expansion applications. The product size is only `24*24mm`, which is suitable for various `embedded smart device applications`.
 
-## Overview
+- `Reminder: If you need to burn the firmware, please press and hold the reset button (about 2 seconds) until the internal green LED lights up, then you can release it, at this time the device has entered download mode and waited for burning.`
 
-### SKU:U001 & U001-B & U001-C
+## Applications
 
-Contains M5Stack-**UNIT ENV** series related case programs.ENV is an environmental sensor with integrated SHT30 and QMP6988 internally to detect temperature, humidity, and atmospheric pressure data.
+- Internet of things terminal controller
+- IoT node
+- Wearable peripherals
 
-## Related Link
+## Schematic
 
-- [Document & Datasheet](https://docs.m5stack.com/en/unit/envIII)
+<img alt="schematics" src="https://static-cdn.m5stack.com/resource/docs/products/core/AtomS3/img-b85e925c-adff-445d-994c-45987dc97a44.jpg" width="100%" />
 
-## Required Libraries:
+## Module Size
 
-- [Adafruit_BMP280_Library](https://github.com/adafruit/Adafruit_BMP280_Library)
-
-## License
-
-- [M5Unit-ENV - MIT](LICENSE) -->
+<img alt="module size" src="https://static-cdn.m5stack.com/resource/docs/products/core/AtomS3/img-abe8d8b0-3d8c-4f42-a84a-093bfed0aa38.png" width="100%" />
