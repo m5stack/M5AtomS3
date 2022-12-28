@@ -6,7 +6,7 @@
 #include <I2C_MPU6886.h>
 #include <ir_tools.h>
 #include <led_strip.h>
-#include <MahonyAHRS.h>
+//#include <MahonyAHRS.h>
 
 #include <BLEDevice.h>
 #include <BLEUtils.h>
@@ -25,6 +25,7 @@
 #define IR_RMT_TX_CHANNEL  RMT_CHANNEL_2
 #define IR_GPIO            12
 
+#define LCD_BACKLIGHT_GPIO 16
 #define BTN_GPIO 41
 #define IMU_ADDR 0x68
 
@@ -40,8 +41,8 @@ class M5ATOMS3_GFX : public lgfx::LGFX_Device {
             auto cfg = _bus_instance.config();
 
             cfg.pin_mosi   = 21;
-            cfg.pin_miso   = 13;
-            cfg.pin_sclk   = 16;
+            cfg.pin_miso   = -1;
+            cfg.pin_sclk   = 17;
             cfg.pin_dc     = 33;
             cfg.freq_write = 40000000;
 
@@ -169,8 +170,8 @@ void setup() {
     // ATOM S3 LCD初始化
     if (device_type == ATOM_S3_LCD) {
         // LCD backlight
-        pinMode(18, OUTPUT);
-        digitalWrite(18, HIGH);
+        pinMode(LCD_BACKLIGHT_GPIO, OUTPUT);
+        digitalWrite(LCD_BACKLIGHT_GPIO, HIGH);
 
         lcd.init();
         lcd.setTextSize(1.8);

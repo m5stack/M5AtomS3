@@ -3,8 +3,8 @@
 * Copyright (c) 2021 by M5Stack
 *                  Equipped with M5AtomS3 sample source code
 *                          配套  M5AtomS3 示例源代码
-* Visit for more information: https://docs.m5stack.com/en/core/atom_matrix
-* 获取更多资料请访问：https://docs.m5stack.com/zh_CN/core/atom_matrix
+* Visit for more information: https://docs.m5stack.com/en/core/AtomS3
+* 获取更多资料请访问: https://docs.m5stack.com/zh_CN/core/AtomS3
 *
 * Describe: MQTT.
 * Date: 2022/12/19

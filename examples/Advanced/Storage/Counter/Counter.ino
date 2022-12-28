@@ -3,8 +3,8 @@
 * Copyright (c) 2021 by M5Stack
 *                  Equipped with M5AtomS3 sample source code
 *                          配套  M5AtomS3 示例源代码
-* Visit for more information: https://docs.m5stack.com/en/products
-* 获取更多资料请访问：https://docs.m5stack.com/zh_CN/products
+* Visit for more information: https://docs.m5stack.com/en/core/AtomS3
+* 获取更多资料请访问: https://docs.m5stack.com/zh_CN/core/AtomS3
 *
 * Describe: counter.  计数器
 * Date: 2022/12/20
