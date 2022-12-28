@@ -6,8 +6,8 @@ M5Display::M5Display() : TFT_eSPI() {
 }
 
 void M5Display::begin() {
-    pinMode(18, OUTPUT);
-    digitalWrite(18, HIGH);
+    pinMode(16, OUTPUT);
+    digitalWrite(16, HIGH);
     TFT_eSPI::begin();
     fillScreen(0);
     setRotation(1);

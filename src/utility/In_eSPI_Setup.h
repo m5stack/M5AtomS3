@@ -7,11 +7,11 @@
 #define TFT_WIDTH  128
 #define TFT_HEIGHT 128
 
-#define TFT_MISO 13
+#define TFT_MISO -1
 #define TFT_MOSI 21
-#define TFT_SCLK 16
+#define TFT_SCLK 17
 #define TFT_CS   15  // Chip select line for TFT display on Shield
-#define TFT_DC   33  // Data/command line for TFT on Shield
+#define TFT_DC   33  // Data/command line for TFT on Shield aka RS
 #define TFT_RST  34  // Reset line for TFT is handled by seesaw!
 
 #define LOAD_GLCD   // Font 1. Original Adafruit 8 pixel font needs ~1820 bytes
