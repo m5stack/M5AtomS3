@@ -17,7 +17,7 @@ function will be run, and this part will only be run once.
 在 AtomS3 启动或者复位后，即会开始执行setup()函数中的程序，该部分只会执行一次。
 */
 void setup() {
-    M5.begin(true, true, false,
+    M5.begin(true, true, true,
              false);  // Init AtomS3(Initialize LCD, serial port).
                       // 初始化 AtomS3(初始化LCD、串口)
     M5.IMU.begin();   // Init IMU sensor.  初始化姿态传感器
