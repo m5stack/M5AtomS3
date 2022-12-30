@@ -15,8 +15,8 @@
 
 // Set the name and password of the wifi to be connected.
 // 配置所连接wifi的名称和密码
-const char* ssid     = "FS309";
-const char* password = "FS8008808";
+const char* ssid     = "";
+const char* password = "";
 
 const char* ntpServer =
     "time1.aliyun.com";  // Set the connect NTP server.  设置连接的NTP服务器
