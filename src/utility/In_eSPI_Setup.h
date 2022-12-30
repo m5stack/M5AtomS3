@@ -4,8 +4,8 @@
                        // parameters below for this display
 
 #define TFT_DRIVER 0x7789
-#define TFT_WIDTH  128
-#define TFT_HEIGHT 128
+#define TFT_WIDTH  129
+#define TFT_HEIGHT 129
 
 #define TFT_MISO -1
 #define TFT_MOSI 21
