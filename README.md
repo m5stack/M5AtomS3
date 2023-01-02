@@ -18,6 +18,10 @@ English | [中文](README_cn.md)
 - IoT node
 - Wearable peripherals
 
+## PlatformIO Compilation
+
+[Compilation File](https://github.com/m5stack/M5AtomS3/blob/main/platformio.ini)
+
 ## Schematic
 
 <img alt="schematics" src="https://static-cdn.m5stack.com/resource/docs/products/core/AtomS3/img-b85e925c-adff-445d-994c-45987dc97a44.jpg" width="100%" />
