@@ -40,5 +40,5 @@ void loop() {
     M5.Lcd.printf("IMU:\r\n");
     M5.Lcd.printf("%0.2f %0.2f %0.2f\r\n", ax, ay, az);
     M5.Lcd.printf("%0.2f %0.2f %0.2f\r\n", gx, gy, gz);
-    delay(300);
+    delay(500);
 }
