@@ -3,7 +3,7 @@
 * Copyright (c) 2022 by M5Stack
 *                  Equipped with M5AtomS3 Lite sample source code
 *                          配套  M5AtomS3 Lite 示例源代码
-* Visit for more information: https://docs.m5stack.com/zh_CN/atom/atomS3%lite
+* Visit for more information: https://docs.m5stack.com/en/atom/atomS3%lite
 * 获取更多资料请访问: https://docs.m5stack.com/zh_CN/atom/atomS3%lite
 *
 * Describe: LED Show example.  LED展示示例
