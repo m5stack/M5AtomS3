@@ -7,20 +7,20 @@
 * 获取更多资料请访问: https://docs.m5stack.com/zh_CN/core/AtomS3
 *
 * Describe: I2C Scanner.  I2C探测
-* Date: 2021/7/27
+* Date: 2023/1/15
 *******************************************************************************
-  This program scans the addresses 1-127 continuosly and shows the devices found
+This program scans the addresses 1-127 continuosly and shows the devices found
 on the TFT. 该程序连续扫描地址 1-127 并显示在外部(内部)I2C发现的设备。
 */
 #include <M5AtomS3.h>
 
 void setup() {
     M5.begin(true, true, true,
-             false);  // Init M5AtomS3(Initialization of external I2C is also
-                      // included).  M5AtomS3(初始化外部I2C也包含在内)
-    // Wire.begin(21, 22); //Detect internal I2C, if this sentence is not added,
-    // it will detect external I2C.  检测内部I2C,若不加此句为检测外部I2C
-    Wire.begin(26, 32);
+             false);  // Init M5AtomS3(Initialization of internal I2C is also
+                      // included).  M5AtomS3(初始化内部I2C也包含在内)
+    Wire.begin(2,
+               1);  // Detect external I2C, if this sentence is not added,
+                    // detect internal I2C.  检测外部I2C,若不加此句为检测内部I2C
     M5.Lcd.println("M5AtomS3 I2C Tester");  // Print a string on the screen.
                                             // 在屏幕上打印字符串
     delay(3000);

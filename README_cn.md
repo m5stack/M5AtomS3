@@ -27,3 +27,7 @@
 ## 尺寸图
 
 <img alt="module size" src="https://static-cdn.m5stack.com/resource/docs/products/core/AtomS3/img-abe8d8b0-3d8c-4f42-a84a-093bfed0aa38.png" width="100%" />
+
+## 更多信息
+
+**Arduino IDE 环境搭建**: [点击这里](https://docs.m5stack.com/zh_CN/quick_start/atoms3/arduino)

@@ -29,3 +29,7 @@ English | [中文](README_cn.md)
 ## Module Size
 
 <img alt="module size" src="https://static-cdn.m5stack.com/resource/docs/products/core/AtomS3/img-abe8d8b0-3d8c-4f42-a84a-093bfed0aa38.png" width="100%" />
+
+## More Information
+
+**Arduino IDE Development**: [Click Here](https://docs.m5stack.com/en/quick_start/atoms3/arduino)
