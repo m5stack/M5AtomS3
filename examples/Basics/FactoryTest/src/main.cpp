@@ -6,14 +6,17 @@
 #include <I2C_MPU6886.h>
 #include <ir_tools.h>
 #include <led_strip.h>
-//#include <MahonyAHRS.h>
+#include <MahonyAHRS.h>
 
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEServer.h>
 
-#define LGFX_USE_V1
-#include "LovyanGFX.hpp"
+#include "M5GFX.h"
+#include "M5UnitOLED.h"
+#include "atoms3.c"
+
+#define VERSION "V0.3"
 
 #define DEVICE_NAME         "ATOM-S3"
 #define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
@@ -23,61 +26,17 @@
 #define NEO_GPIO           35
 #define NUM_LEDS           1
 #define IR_RMT_TX_CHANNEL  RMT_CHANNEL_2
-#define IR_GPIO            12
+#define IR_GPIO            4
 
-#define LCD_BACKLIGHT_GPIO 16
+#define BL_GPIO 16
+
 #define BTN_GPIO 41
 #define IMU_ADDR 0x68
 
+#define I2C_SDA 38
+#define I2C_SCL 39
+
 enum { DEV_UNKNOWN, ATOM_S3, ATOM_S3_LCD };
-
-class M5ATOMS3_GFX : public lgfx::LGFX_Device {
-    lgfx::Panel_GC9107 _panel_instance;
-    lgfx::Bus_SPI _bus_instance;
-
-   public:
-    M5ATOMS3_GFX(void) {
-        {
-            auto cfg = _bus_instance.config();
-
-            cfg.pin_mosi   = 21;
-            cfg.pin_miso   = -1;
-            cfg.pin_sclk   = 17;
-            cfg.pin_dc     = 33;
-            cfg.freq_write = 40000000;
-
-            _bus_instance.config(cfg);
-            _panel_instance.setBus(&_bus_instance);
-        }
-        {
-            auto cfg = _panel_instance.config();
-
-            cfg.invert       = false;
-            cfg.pin_cs       = 15;
-            cfg.pin_rst      = 34;
-            cfg.pin_busy     = -1;
-            cfg.panel_width  = 128;
-            cfg.panel_height = 128;
-            cfg.offset_x     = 0;
-            cfg.offset_y     = 32;
-
-            _panel_instance.config(cfg);
-        }
-        // {
-        //     auto cfg = _light_instance.config();
-
-        //     cfg.pin_bl      = 18;
-        //     cfg.invert      = true;
-        //     cfg.freq        = 44100;
-        //     cfg.pwm_channel = 7;
-
-        //     _light_instance.config(cfg);
-        //     _panel_instance.setLight(&_light_instance);
-        // }
-
-        setPanel(&_panel_instance);
-    }
-};
 
 #include "cube.hpp"
 
@@ -87,24 +46,29 @@ static void neopixel_init(void);
 static void update_neopixel(uint8_t r, uint8_t g, uint8_t b);
 static void ir_tx_init(void);
 static void ir_tx_test(void);
+
 static void ble_task(void *);
 static void wifi_task(void *);
+static void io_task(void *);
 
-static uint8_t device_type              = DEV_UNKNOWN;
-static uint8_t atom_s3_gpio_list[8]     = {14, 17, 36, 37, 38, 39, 40, 42};
-static uint8_t atom_s3_lcd_gpio_list[6] = {14, 17, 36,
-                                           37, 40, 42};  // 38, 29 use for IMU
-static time_t last_io_reverse_time      = 0;
-static time_t last_imu_print_time       = 0;
-static time_t last_ir_send_time         = 0;
-static time_t last_ble_change_time      = 0;
-static time_t last_udp_broadcast_time   = 0;
-static time_t last_wifi_scan_time       = 0;
+static uint8_t device_type          = DEV_UNKNOWN;
+static uint8_t atom_s3_gpio_list[8] = {
+    /*Bottom*/ 5, 6, 7, 8, I2C_SDA, I2C_SCL};
+static uint8_t atom_s3_lcd_gpio_list[6] = {
+    /*Bottom*/ 5, 6, 7, 8, /*Grove*/ 2, 1};  // I2C_SDA, I2C_SCL
+static time_t last_io_reverse_time    = 0;
+static time_t last_imu_print_time     = 0;
+static time_t last_ir_send_time       = 0;
+static time_t last_ble_change_time    = 0;
+static time_t last_udp_broadcast_time = 0;
+static int32_t last_wifi_scan_time     = -25000;
 
-static bool btn_pressd_flag = true;
-static int btn_pressd_count = 0;
+static bool wifi_scan_done_flag = false;
+static bool factory_test_flag = true;
+static bool btn_pressd_flag   = false;
+static int btn_pressd_count   = 0;
 
-static uint32_t ir_addr       = 0x00;
+static uint16_t ir_addr       = 0;
 static uint8_t ir_cmd         = 0x20;
 static rmt_item32_t *ir_items = NULL;
 static size_t ir_length       = 0;
@@ -120,26 +84,29 @@ static uint32_t neopixel_color_list[] = {0xFF0000, 0x00FF00, 0x0000FF, 0xFFFFFF,
 static uint8_t mac_addr[6];
 static char name_buffer[24];
 
-static M5ATOMS3_GFX lcd;
-static LGFX_Sprite sprite1(&lcd);
-static LGFX_Sprite sprite2(&lcd);
-static LGFX_Sprite sprite3(&lcd);
-static LGFX_Sprite sprite4(&lcd);
+static M5GFX lcd;
+static M5UnitOLED oled( 2, 1, 400000 ); // SDA, SCL, FREQ
+static M5Canvas btn_canvas(&lcd);
+static M5Canvas wifi_canvas(&lcd);
+static M5Canvas imu_canvas(&lcd);
+static M5Canvas ir_canvas(&lcd);
 static I2C_MPU6886 imu(I2C_MPU6886_DEFAULT_ADDRESS, Wire);
 static led_strip_t *strip       = NULL;
 static ir_builder_t *ir_builder = NULL;
 
 void setup() {
+    // 按键
+    pinMode(BTN_GPIO, INPUT_PULLUP);
+
     USBSerial.begin(115200);
     esp_efuse_mac_get_default(mac_addr);
-    ir_addr = (mac_addr[2] << 24) | (mac_addr[3] << 16) | (mac_addr[4] << 8) |
-              mac_addr[5];
+    ir_addr = (mac_addr[4] << 8 | mac_addr[5]);
 
     sprintf(name_buffer, DEVICE_NAME "-%02X%02X%02X%02X%02X%02X",
             MAC2STR(mac_addr));
 
     // 判断型号
-    Wire.begin(38, 39);
+    Wire.begin(I2C_SDA, I2C_SCL);
     Wire.beginTransmission(IMU_ADDR);
     if (Wire.endTransmission() == 0) {
         device_type = ATOM_S3_LCD;
@@ -147,94 +114,86 @@ void setup() {
         device_type = ATOM_S3;
     }
 
-    // Neo Pixel LED
-    neopixel_init();
-    update_neopixel((neopixel_color_list[neopixel_color_index] >> 16 & 0xFF),
-                    (neopixel_color_list[neopixel_color_index] >> 8 & 0xFF),
-                    (neopixel_color_list[neopixel_color_index] & 0xFF));
-
-    // IO初始化
-    if (device_type == ATOM_S3) {
-        for (size_t i = 0; i < sizeof(atom_s3_gpio_list); i++) {
-            pinMode(atom_s3_gpio_list[i], OUTPUT);
-            digitalWrite(atom_s3_gpio_list[i], LOW);
-        }
-        Wire.end();
-    } else if (device_type == ATOM_S3_LCD) {
-        for (size_t i = 0; i < sizeof(atom_s3_lcd_gpio_list); i++) {
-            pinMode(atom_s3_lcd_gpio_list[i], OUTPUT);
-            digitalWrite(atom_s3_lcd_gpio_list[i], LOW);
-        }
-    }
-
     // ATOM S3 LCD初始化
     if (device_type == ATOM_S3_LCD) {
         // LCD backlight
-        pinMode(LCD_BACKLIGHT_GPIO, OUTPUT);
-        digitalWrite(LCD_BACKLIGHT_GPIO, HIGH);
+        pinMode(BL_GPIO, OUTPUT);
+        digitalWrite(BL_GPIO, HIGH);
 
         lcd.init();
-        lcd.setTextSize(1.8);
         lcd.setTextWrap(false);
         lcd.setTextColor(TFT_WHITE);
 
+        if (!factory_test_flag) {
+            lcd.drawPng(atom_s3_img, ~0u, 0, 0);
+            while (true) {
+                delay(10);
+            }
+        }
+
         lcd.clear(TFT_WHITE);
-        delay(3000);
+        delay(500);
         lcd.clear(TFT_RED);
-        delay(3000);
+        delay(500);
         lcd.clear(TFT_GREEN);
-        delay(3000);
+        delay(500);
         lcd.clear(TFT_BLUE);
-        delay(3000);
+        delay(500);
         lcd.clear(TFT_BLACK);
-        delay(3000);
+        delay(500);
 
-        lcd.drawCenterString("ATOM S3 LCD", 64, 1);
-        lcd.setCursor(25, 16);
-        lcd.printf("%08X", ir_addr);
-        lcd.drawFastHLine(0, 31, 128);
+        lcd.setFont(&fonts::efontCN_24_b);
+        lcd.drawCenterString("ATOM S3", 64, 0);
+        lcd.drawFastHLine(0, 26, 128);
 
-        sprite1.setColorDepth(16);
-        sprite1.createSprite(128, 25);
-        sprite1.setTextWrap(false);
-        sprite1.setTextScroll(false);
-        sprite1.setTextSize(1.3);
-        sprite1.setTextColor(TFT_YELLOW);
+        btn_canvas.setColorDepth(16);
+        btn_canvas.createSprite(128, 18);
+        btn_canvas.setTextWrap(false);
+        btn_canvas.setTextScroll(false);
+        btn_canvas.setFont(&fonts::efontCN_16);
+        btn_canvas.setTextColor(TFT_GREEN);
+        btn_canvas.printf("Button count: 0");
+        btn_canvas.pushSprite(0, 28);
 
-        sprite2.setColorDepth(16);
-        sprite2.createSprite(128, 16);
-        sprite2.setTextWrap(false);
-        sprite2.setTextScroll(false);
-        sprite2.setTextSize(1.3);
-        sprite2.setTextColor(TFT_GREEN);
+        imu_canvas.setColorDepth(16);
+        imu_canvas.createSprite(128, 38);
+        imu_canvas.setTextWrap(false);
+        imu_canvas.setTextScroll(false);
+        imu_canvas.setFont(&fonts::efontCN_12);
+        imu_canvas.setTextColor(TFT_ORANGE);
 
-        sprite3.setColorDepth(16);
-        sprite3.createSprite(128, 32);
-        sprite3.setTextWrap(false);
-        sprite3.setTextScroll(false);
-        sprite3.setTextSize(1.3);
-        sprite3.setTextColor(TFT_SKYBLUE);
+        ir_canvas.setColorDepth(16);
+        ir_canvas.createSprite(128, 18);
+        ir_canvas.setTextWrap(false);
+        ir_canvas.setTextScroll(false);
+        ir_canvas.setFont(&fonts::efontCN_16);
+        ir_canvas.setTextColor(TFT_RED);
 
-        sprite4.setColorDepth(16);
-        sprite4.createSprite(128, 25);
-        sprite4.setTextWrap(false);
-        sprite4.setTextScroll(false);
-        sprite4.setTextSize(1.3);
-        sprite4.setTextColor(TFT_RED);
+        wifi_canvas.setColorDepth(16);
+        wifi_canvas.createSprite(128, 40);
+        wifi_canvas.setFont(&fonts::efontCN_12);
+        wifi_canvas.printf("WiFi scaning...");
+        wifi_canvas.pushSprite(0, 98);
 
         // IMU 初始化
         imu.begin();
-    }
 
-    // 按键
-    pinMode(BTN_GPIO, INPUT_PULLUP);
+        USBSerial.printf("ATOM-S3-LCD\r\n");
+    } else if (device_type == ATOM_S3) {
+        // Neo Pixel LED
+        oled.begin();
+        oled.setRotation(1);
+        oled.setFont(&fonts::efontCN_24_b);
+        oled.drawCenterString("ATOMS3 Lite", 64, 16);
+        neopixel_init();
+        update_neopixel(
+            (neopixel_color_list[neopixel_color_index] >> 16 & 0xFF),
+            (neopixel_color_list[neopixel_color_index] >> 8 & 0xFF),
+            (neopixel_color_list[neopixel_color_index] & 0xFF));
+    }
 
     // IR
     ir_tx_init();
-    // temp
-    // gpio_reset_pin((gpio_num_t)IR_GPIO);
-    // pinMode(IR_GPIO, OUTPUT);
-    // digitalWrite(IR_GPIO, HIGH);
 
     // BLE
     xTaskCreatePinnedToCore(ble_task, "ble_task", 4096 * 8, NULL, 1, NULL,
@@ -242,6 +201,9 @@ void setup() {
 
     // WIFI
     xTaskCreatePinnedToCore(wifi_task, "wifi_task", 4096 * 8, NULL, 1, NULL,
+                            APP_CPU_NUM);
+
+    xTaskCreatePinnedToCore(io_task, "io_task", 4096 * 2, NULL, 1, NULL,
                             APP_CPU_NUM);
 }
 
@@ -256,52 +218,29 @@ void loop() {
             if (neopixel_color_index > 4) {
                 neopixel_color_index = 0;
             }
-        }
-        while (digitalRead(BTN_GPIO) == LOW) {
+            while (digitalRead(BTN_GPIO) == LOW)
+            {
+                delay(300);
+            }
         }
     }
 
     if (btn_pressd_flag) {
-        update_neopixel(
-            (neopixel_color_list[neopixel_color_index] >> 16 & 0xFF),
-            (neopixel_color_list[neopixel_color_index] >> 8 & 0xFF),
-            (neopixel_color_list[neopixel_color_index] & 0xFF));
-
         if (device_type == ATOM_S3_LCD) {
-            sprite1.setCursor(0, 0);
-            sprite1.clear();
-            sprite1.printf("BTN Pressed %d\r\nRGB -> %s\r\n", btn_pressd_count,
-                           neopixel_color_name[neopixel_color_index]);
-            sprite1.pushSprite(0, 38);
+            btn_canvas.setTextColor(TFT_GREEN);
+            btn_canvas.setCursor(0, 0);
+            btn_canvas.clear();
+            // btn_canvas.printf("BTN OK %d\r\n", btn_pressd_count);
+            btn_canvas.printf("Button count: %d", btn_pressd_count);
+            btn_canvas.pushSprite(0, 28);
+        } else if (device_type == ATOM_S3) {
+            update_neopixel(
+                (neopixel_color_list[neopixel_color_index] >> 16 & 0xFF),
+                (neopixel_color_list[neopixel_color_index] >> 8 & 0xFF),
+                (neopixel_color_list[neopixel_color_index] & 0xFF));
         }
-        USBSerial.printf("BTN Pressed %d\r\nRGB -> %s\r\n", btn_pressd_count,
-                         neopixel_color_name[neopixel_color_index]);
+        USBSerial.printf("BTN Pressed %d\r\n", btn_pressd_count);
         btn_pressd_flag = false;
-    }
-
-    // IO 翻转  300ms 一次？
-    if (millis() - last_io_reverse_time > 300) {
-        if (device_type == ATOM_S3) {
-            for (size_t i = 0; i < sizeof(atom_s3_gpio_list); i++) {
-                digitalWrite(atom_s3_gpio_list[i],
-                             !digitalRead(atom_s3_gpio_list[i]));
-            }
-        } else if (device_type == ATOM_S3_LCD) {
-            for (size_t i = 0; i < sizeof(atom_s3_lcd_gpio_list); i++) {
-                digitalWrite(atom_s3_lcd_gpio_list[i],
-                             !digitalRead(atom_s3_lcd_gpio_list[i]));
-            }
-        }
-        if (device_type == ATOM_S3_LCD) {
-            sprite2.clear();
-            sprite2.setCursor(0, 0);
-            sprite2.printf("GPIO TEST:  %s\r\n",
-                           digitalRead(atom_s3_gpio_list[0]) ? "HIGH" : "LOW");
-            sprite2.pushSprite(0, 64);
-        }
-        // USBSerial.printf("GPIO TEST:  %s\r\n",
-        //                  digitalRead(atom_s3_gpio_list[0]) ? "HIGH" : "LOW");
-        last_io_reverse_time = millis();
     }
 
     // IMU
@@ -322,28 +261,53 @@ void loop() {
         imu.getGyro(&gx, &gy, &gz);
         imu.getTemp(&t);
 
-        sprite3.setCursor(0, 0);
-        sprite3.clear();
-        sprite3.printf("IMU:\r\n");
-        sprite3.printf("%0.2f %0.2f %0.2f\r\n", ax, ay, az);
-        sprite3.printf("%0.2f %0.2f %0.2f\r\n", gx, gy, gz);
-        sprite3.pushSprite(0, 80);
-        // USBSerial.printf("IMU %f,%f,%f,%f,%f,%f,%f\r\n", ax, ay, az, gx, gy,
-        // gz,
-        //                  t);
+        imu_canvas.setCursor(0, 0);
+        imu_canvas.clear();
+        imu_canvas.setFont(&fonts::efontCN_16);
+        imu_canvas.printf("IMU:\r\n");
+        imu_canvas.setFont(&fonts::efontCN_12);
+        imu_canvas.printf("%0.2f %0.2f %0.2f\r\n", ax, ay, az);
+        imu_canvas.printf("%0.2f %0.2f %0.2f\r\n", gx, gy, gz);
+        imu_canvas.pushSprite(0, 44);
+        USBSerial.printf(
+            "IMU\r\nax:%f ay:%f az:%f gx:%f gy:%f gz:%f temp:%f\r\n", ax, ay,
+            az, gx, gy, gz, t);
         last_imu_print_time = millis();
     }
 
     if (millis() - last_ir_send_time > 1000) {
         ir_tx_test();
         if (device_type == ATOM_S3_LCD) {
-            sprite4.setCursor(0, 0);
-            sprite4.clear();
-            sprite4.printf("IR: %02X %02X\r\n", ir_addr, ir_cmd);
-            sprite4.pushSprite(0, 118);
+            ir_canvas.setCursor(0, 0);
+            ir_canvas.clear();
+            ir_canvas.printf("IR: %02X %02X\r\n", ir_addr, ir_cmd);
+            ir_canvas.pushSprite(0, 82);
+        } else {
+
         }
         USBSerial.printf("IR Send >>> addr:%02X cmd:%02X\r\n", ir_addr, ir_cmd);
         last_ir_send_time = millis();
+    }
+
+    if (wifi_scan_done_flag) {
+        if (device_type == ATOM_S3_LCD) {
+            wifi_canvas.clear();
+            wifi_canvas.setCursor(0, 0);
+            wifi_canvas.printf("WiFi scan total: %d\r\n", WiFi.scanComplete());
+            wifi_canvas.printf("1. %s %d", WiFi.SSID(0).c_str(), WiFi.RSSI(0));
+            wifi_canvas.pushSprite(0, 98);
+        } else {
+            oled.clear();
+            oled.setCursor(0, 0);
+            oled.setFont(&fonts::efontCN_10);
+            oled.printf("MAC: %02X%02X%02X%02X%02X%02X\r\n", MAC2STR(mac_addr));
+            oled.setFont(&fonts::efontCN_12);
+            oled.printf("Wi-Fi扫描个数: %d\r\n", WiFi.scanComplete());
+            oled.printf("信号最好: %s\r\n信号值: %d", WiFi.SSID(0).c_str(), WiFi.RSSI(0));
+        }
+        USBSerial.printf("WiFi scan total: %d\r\n", WiFi.scanComplete());
+        USBSerial.printf("1. %s %d", WiFi.SSID(0).c_str(), WiFi.RSSI(0));
+        wifi_scan_done_flag = false;
     }
 
     delay(10);
@@ -412,8 +376,8 @@ static void ir_tx_init(void) {
 
 static void ir_tx_test(void) {
     ir_cmd++;
-    // USBSerial.printf("Send command 0x%x to address 0x%x\r\n", ir_cmd,
-    // ir_addr); Send new key code
+    USBSerial.printf("Send command 0x%x to address 0x%x\r\n", ir_cmd, ir_addr);
+    // Send new key code
     ESP_ERROR_CHECK(ir_builder->build_frame(ir_builder, ir_addr, ir_cmd));
     ESP_ERROR_CHECK(ir_builder->get_result(ir_builder, &ir_items, &ir_length));
     // To send data according to the waveform items.
@@ -477,7 +441,7 @@ static void wifi_task(void *) {
 
     size_t udp_count = 0;
     while (1) {
-        if (millis() - last_wifi_scan_time > 30000) {
+        if (millis() - last_wifi_scan_time > 20000) {
             USBSerial.println("\r\nWiFi scan start");
 
             // WiFi.scanNetworks will return the number of networks found
@@ -503,17 +467,48 @@ static void wifi_task(void *) {
             }
             USBSerial.println("");
             last_wifi_scan_time = millis();
+            wifi_scan_done_flag = true;
         }
 
         if (millis() - last_udp_broadcast_time > 1000) {
             udp_count++;
             udp_ap.beginPacket(udp_ap_broadcast_addr, udp_broadcast_port);
-            // udp_ap.printf("Seconds since boot: %lu", millis() / 1000);
-            udp_ap.printf("Seconds since boot: %lu", udp_count);
+            udp_ap.printf("UDP broadcast count: %lu", udp_count);
             USBSerial.printf("UDP broadcast %s\r\n",
                              udp_ap.endPacket() == 1 ? "OK" : "ERROR");
             last_udp_broadcast_time = millis();
         }
         delay(10);
+    }
+}
+
+static void io_task(void *) {
+    if (device_type == ATOM_S3) {
+        for (size_t i = 0; i < sizeof(atom_s3_gpio_list); i++) {
+            pinMode(atom_s3_gpio_list[i], OUTPUT);
+            digitalWrite(atom_s3_gpio_list[i], LOW);
+        }
+        Wire.end();
+    } else if (device_type == ATOM_S3_LCD) {
+        for (size_t i = 0; i < sizeof(atom_s3_lcd_gpio_list); i++) {
+            pinMode(atom_s3_lcd_gpio_list[i], OUTPUT);
+            digitalWrite(atom_s3_lcd_gpio_list[i], LOW);
+        }
+    }
+
+    while (true) {
+        if (device_type == ATOM_S3) {
+            for (size_t i = 0; i < sizeof(atom_s3_gpio_list); i++) {
+                digitalWrite(atom_s3_gpio_list[i],
+                             !digitalRead(atom_s3_gpio_list[i]));
+                delay(200);
+            }
+        } else if (device_type == ATOM_S3_LCD) {
+            for (size_t i = 0; i < sizeof(atom_s3_lcd_gpio_list); i++) {
+                digitalWrite(atom_s3_lcd_gpio_list[i],
+                             !digitalRead(atom_s3_lcd_gpio_list[i]));
+                delay(200);
+            }
+        }
     }
 }

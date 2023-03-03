@@ -1,10 +1,10 @@
 /*
 *******************************************************************************
 * Copyright (c) 2022 by M5Stack
-*                  Equipped with M5AtomS3 sample source code
-*                          配套  M5AtomS3 示例源代码
-* Visit for more information: https://docs.m5stack.com/en/core/AtomS3
-* 获取更多资料请访问: https://docs.m5stack.com/zh_CN/core/AtomS3
+*                  Equipped with M5AtomS3Lite sample source code
+*                          配套  M5AtomS3Lite 示例源代码
+* Visit for more information: https://docs.m5stack.com/en/core/AtomS3%20Lite
+* 获取更多资料请访问: https://docs.m5stack.com/zh_CN/core/AtomS3%20Lite
 *
 * Describe: LED Show example.  LED展示示例
 * Date: 2023/1/3
@@ -18,7 +18,8 @@ LED colour switching after burning program.
   run once. 在 M5AtomS3
   启动或者复位后，即会开始执行setup()函数中的程序，该部分只会执行一次。 */
 void setup() {
-    M5.begin(false, true, false, true);  // Init M5AtomS3.  初始化 M5AtomS3
+    M5.begin(false, true, false,
+             true);  // Init M5AtomS3Lite.  初始化 M5AtomS3Lite
     USBSerial.println("Pls Press Btn change color");
 }
 
