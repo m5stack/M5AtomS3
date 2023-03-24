@@ -1,351 +1,702 @@
+#include <math.h>
 #include <Arduino.h>
-#include <driver/rmt.h>
 #include <WiFi.h>
 #include <Wire.h>
-#include <BLEClient.h>
-#include <I2C_MPU6886.h>
+#include <driver/ledc.h>
+#include <driver/rmt.h>
 #include <ir_tools.h>
-#include <led_strip.h>
-#include <MahonyAHRS.h>
-
-#include <BLEDevice.h>
-#include <BLEUtils.h>
-#include <BLEServer.h>
 
 #include "M5GFX.h"
-#include "M5UnitOLED.h"
-#include "atoms3.c"
+#include "M5Unified.h"
+#include "I2C_MPU6886.h"
+#include "MadgwickAHRS.h"
 
-#define VERSION "V0.3"
+#include "img_res.c"
 
-#define DEVICE_NAME         "ATOM-S3"
-#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
-#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+#define VERSION         0.1
+#define LAYOUT_OFFSET_Y 30
 
-#define NE0_RMT_TX_CHANNEL RMT_CHANNEL_0
-#define NEO_GPIO           35
-#define NUM_LEDS           1
-#define IR_RMT_TX_CHANNEL  RMT_CHANNEL_2
-#define IR_GPIO            4
+#define IR_RMT_TX_CHANNEL RMT_CHANNEL_2
+#define IR_GPIO           4
 
-#define BL_GPIO 16
+typedef enum {
+    FUNC_WIFI_SCAN,
+    FUNC_I2C_SCAN,
+    FUNC_UART_MON,
+    FUNC_PWM_TEST,
+    FUNC_ADC_TEST,
+    FUNC_IR_SEND,
+    FUNC_IMU_TEST,
+    FUNC_MAX
+} func_index_t;
 
-#define BTN_GPIO 41
-#define IMU_ADDR 0x68
-
-#define I2C_SDA 38
-#define I2C_SCL 39
-
-enum { DEV_UNKNOWN, ATOM_S3, ATOM_S3_LCD };
-
-#include "cube.hpp"
-
-extern const unsigned char ATOMS3[];
-
-static void neopixel_init(void);
-static void update_neopixel(uint8_t r, uint8_t g, uint8_t b);
+static void boot_animation(void);
 static void ir_tx_init(void);
-static void ir_tx_test(void);
+static void ir_tx_send(uint32_t ir_cmd);
 
-static void ble_task(void *);
-static void wifi_task(void *);
-static void io_task(void *);
+static char func_name_text[][16] = {
+    "func_wifi_scan", "func_i2c_scan", "func_uart_mon", "func_pwm_test",
+    "func_adc_test",  "func_ir_test",  "func_imu_test"};
 
-static uint8_t device_type          = DEV_UNKNOWN;
-static uint8_t atom_s3_gpio_list[8] = {
-    /*Bottom*/ 5, 6, 7, 8, I2C_SDA, I2C_SCL};
-static uint8_t atom_s3_lcd_gpio_list[6] = {
-    /*Bottom*/ 5, 6, 7, 8, /*Grove*/ 2, 1};  // I2C_SDA, I2C_SCL
-static time_t last_io_reverse_time    = 0;
-static time_t last_imu_print_time     = 0;
-static time_t last_ir_send_time       = 0;
-static time_t last_ble_change_time    = 0;
-static time_t last_udp_broadcast_time = 0;
-static int32_t last_wifi_scan_time     = -25000;
+const unsigned char* func_img_list[] = {
+    wifi_scan_img, i2c_scan_img, uart_mon_img, io_pwm_img,
+    io_adc_img,    ir_send_img,  imu_test_img,
+};
 
-static bool wifi_scan_done_flag = false;
-static bool factory_test_flag = true;
-static bool btn_pressd_flag   = false;
-static int btn_pressd_count   = 0;
+I2C_MPU6886 imu(I2C_MPU6886_DEFAULT_ADDRESS, Wire1);
+Madgwick filter;
 
-static uint16_t ir_addr       = 0;
-static uint8_t ir_cmd         = 0x20;
-static rmt_item32_t *ir_items = NULL;
-static size_t ir_length       = 0;
+class func_base_t {
+   public:
+    M5Canvas* _canvas;
+    bool _draw_flag;
+    bool _btn_clicked;
 
-const char *udp_ap_broadcast_addr = "192.168.4.255";
-const int udp_broadcast_port      = 3333;
+   public:
+    void entry(M5Canvas* canvas_) {
+        _canvas = canvas_;
+        _canvas->fillRect(0, 0, _canvas->width(), _canvas->height(), TFT_BLACK);
+        needDraw();
+        start();
+    };
 
-static uint8_t neopixel_color_index   = 0;
-static char neopixel_color_name[][6]  = {"Red", "Green", "Blue", "White",
-                                         "Black"};
-static uint32_t neopixel_color_list[] = {0xFF0000, 0x00FF00, 0x0000FF, 0xFFFFFF,
-                                         0x000000};
-static uint8_t mac_addr[6];
-static char name_buffer[24];
+    virtual void start();
+    virtual void update(bool btn_click);
+    virtual void stop();
 
-static M5GFX lcd;
-static M5UnitOLED oled( 2, 1, 400000 ); // SDA, SCL, FREQ
-static M5Canvas btn_canvas(&lcd);
-static M5Canvas wifi_canvas(&lcd);
-static M5Canvas imu_canvas(&lcd);
-static M5Canvas ir_canvas(&lcd);
-static I2C_MPU6886 imu(I2C_MPU6886_DEFAULT_ADDRESS, Wire);
-static led_strip_t *strip       = NULL;
-static ir_builder_t *ir_builder = NULL;
-
-void setup() {
-    // 按键
-    pinMode(BTN_GPIO, INPUT_PULLUP);
-
-    USBSerial.begin(115200);
-    esp_efuse_mac_get_default(mac_addr);
-    ir_addr = (mac_addr[4] << 8 | mac_addr[5]);
-
-    sprintf(name_buffer, DEVICE_NAME "-%02X%02X%02X%02X%02X%02X",
-            MAC2STR(mac_addr));
-
-    // 判断型号
-    Wire.begin(I2C_SDA, I2C_SCL);
-    Wire.beginTransmission(IMU_ADDR);
-    if (Wire.endTransmission() == 0) {
-        device_type = ATOM_S3_LCD;
-    } else {
-        device_type = ATOM_S3;
+    void needDraw() {
+        _draw_flag = true;
     }
 
-    // ATOM S3 LCD初始化
-    if (device_type == ATOM_S3_LCD) {
-        // LCD backlight
-        pinMode(BL_GPIO, OUTPUT);
-        digitalWrite(BL_GPIO, HIGH);
+    virtual void draw() {
+        if (_draw_flag) {
+            _draw_flag = false;
+            _canvas->pushSprite(0, LAYOUT_OFFSET_Y);
+        }
+    };
 
-        lcd.init();
-        lcd.setTextWrap(false);
-        lcd.setTextColor(TFT_WHITE);
+    void leave(void) {
+        stop();
+    }
+};
 
-        if (!factory_test_flag) {
-            lcd.drawPng(atom_s3_img, ~0u, 0, 0);
-            while (true) {
-                delay(10);
+class func_wifi_t : public func_base_t {
+    time_t last_time_show   = 0;
+    int16_t wifi_scan_count = 0;
+    int16_t wifi_show_index = 0;
+    bool wifi_scan_done     = false;
+
+    void start() {
+        wifi_scan_count = 0;
+        wifi_show_index = 0;
+        wifi_scan_done  = false;
+        _btn_clicked    = false;
+
+        WiFi.mode(WIFI_MODE_STA);
+        WiFi.scanNetworks(true);
+
+        _canvas->setTextWrap(false);
+        _canvas->setTextScroll(true);
+        _canvas->clear(TFT_BLACK);
+        _canvas->setFont(&fonts::efontCN_16);
+        _canvas->drawCenterString("Scaning...", _canvas->width() / 2,
+                                  _canvas->height() / 2 - 12);
+        _canvas->setFont(&fonts::efontCN_12);
+        needDraw();
+    }
+
+    void update(bool btn_click) {
+        if (!wifi_scan_done) {
+            int16_t result = WiFi.scanComplete();
+            if (result == WIFI_SCAN_RUNNING || result == WIFI_SCAN_FAILED) {
+                return;
+            } else if (result > 0) {
+                wifi_scan_done  = true;
+                wifi_scan_count = result;
+                _canvas->setCursor(0, 0);
+                _canvas->clear(TFT_BLACK);
+            }
+        } else {
+            if (btn_click) {
+                _btn_clicked = !_btn_clicked;
+            }
+
+            if (!_btn_clicked) {
+                if (millis() - last_time_show > 500) {
+                    if (wifi_show_index <
+                        (wifi_scan_count < 5 ? wifi_scan_count : 5)) {
+                        _canvas->printf("%d. %s %d\r\n", wifi_show_index + 1,
+                                        WiFi.SSID(wifi_show_index).c_str(),
+                                        WiFi.RSSI(wifi_show_index));
+                        wifi_show_index++;
+                    } else {
+                        _canvas->printf("\r\n\r\n");
+                        _canvas->setFont(&fonts::efontCN_14);
+                        _canvas->printf("Top 5 list:\r\n");
+                        _canvas->setFont(&fonts::efontCN_12);
+                        wifi_show_index = 0;
+                    }
+                    last_time_show = millis();
+                    needDraw();
+                }
+            } else {
+                // update pause
+            }
+        }
+    }
+
+    void stop() {
+        WiFi.scanDelete();
+        _canvas->setFont(&fonts::Font0);
+    }
+};
+
+class func_i2c_t : public func_base_t {
+    uint8_t addr_list[6] = {};
+    uint8_t device_count = 0;
+
+    void start() {
+        Wire.begin(2, 1);
+
+        _canvas->setTextWrap(false);
+        _canvas->setTextScroll(true);
+        _canvas->clear(TFT_BLACK);
+        _canvas->setFont(&fonts::efontCN_16);
+        _canvas->drawCenterString("Scaning...", _canvas->width() / 2,
+                                  _canvas->height() / 2 - 12);
+        needDraw();
+        _btn_clicked = false;
+    }
+
+    void update(bool btn_click) {
+        if (btn_click) {
+            _btn_clicked = !_btn_clicked;
+            _canvas->clear(TFT_BLACK);
+            _canvas->setTextSize(1);
+            _canvas->setTextColor(TFT_WHITE);
+            _canvas->setFont(&fonts::efontCN_16);
+            _canvas->drawCenterString("Scaning...", _canvas->width() / 2,
+                                      _canvas->height() / 2 - 12);
+            needDraw();
+            draw();
+        }
+
+        if (!_btn_clicked) {
+            _btn_clicked = true;
+            needDraw();
+
+            uint8_t address = 0;
+            device_count    = 0;
+            memset(addr_list, sizeof(addr_list), 0);
+            for (address = 1; address < 127; address++) {
+                Wire.beginTransmission(address);
+                uint8_t error = Wire.endTransmission();
+                if (error == 0) {
+                    addr_list[device_count] = address;
+                    device_count++;
+
+                    if (device_count > 5) {
+                        break;
+                    }
+                }
+            }
+            _canvas->clear();
+            if (device_count == 0) {
+                _canvas->setFont(&fonts::efontCN_24);
+                _canvas->setTextSize(1);
+                _canvas->setTextColor(TFT_RED);
+                _canvas->drawCenterString("Not found", 64,
+                                          _canvas->height() / 2 - 16);
+                return;
+            }
+
+            char addr_buf[4];
+            _canvas->setFont(&fonts::efontCN_16);
+            draw_form();
+            for (size_t i = 0; i < device_count; i++) {
+                sprintf(addr_buf, "%d. 0x%02X", i + 1, addr_list[i]);
+                _canvas->setTextColor((random(0, 255) << 16 |
+                                       random(0, 255) << 8 | random(0, 255)));
+                _canvas->drawCenterString(addr_buf, (32 * i > 2 ? 1 : 0) + 32,
+                                          (32 * (i % 3)) + 8);
+            }
+        }
+    }
+
+    void stop() {
+        Wire.end();
+        _canvas->setTextColor(TFT_WHITE);
+    }
+
+    void draw_form() {
+        _canvas->drawFastHLine(0, _canvas->height() / 3 * 0 + 1,
+                               _canvas->width(), TFT_WHITE);
+        _canvas->drawFastHLine(0, _canvas->height() / 3 * 1, _canvas->width(),
+                               TFT_WHITE);
+        _canvas->drawFastHLine(0, _canvas->height() / 3 * 2, _canvas->width(),
+                               TFT_WHITE);
+        _canvas->drawFastHLine(0, _canvas->height() / 3 * 3, _canvas->width(),
+                               TFT_WHITE);
+        _canvas->drawFastVLine(_canvas->width() / 2 * 0, 1,
+                               _canvas->height() - 2, TFT_WHITE);
+        _canvas->drawFastVLine(_canvas->width() / 2 * 1, 1,
+                               _canvas->height() - 2, TFT_WHITE);
+        _canvas->drawFastVLine(_canvas->width() / 2 * 2 - 1, 1,
+                               _canvas->height() - 2, TFT_WHITE);
+    }
+};
+
+class func_uart_t : public func_base_t {
+    const unsigned char* uart_mon_img_list[4] = {
+        uart_mon_01_img, uart_mon_02_img, uart_mon_03_img, uart_mon_04_img};
+    const uint8_t uart_io_list[4][2] = {{2, 1}, {2, 1}, {1, 2}, {1, 2}};
+    const uint32_t uart_baud_list[4] = {9600, 115200, 9600, 115200};
+    uint8_t uart_mon_mode_index      = 0;
+
+    void start() {
+        Serial.begin(uart_baud_list[uart_mon_mode_index], SERIAL_8N1,
+                     uart_io_list[uart_mon_mode_index][0],
+                     uart_io_list[uart_mon_mode_index][1]);
+        M5.Display.drawPng(uart_mon_img_list[uart_mon_mode_index], ~0u, 0, 0);
+        M5.Display.setFont(&fonts::Font0);
+    }
+
+    void update(bool btn_click) {
+        if (btn_click) {
+            uart_mon_mode_index++;
+            if (uart_mon_mode_index > 3) {
+                uart_mon_mode_index = 0;
+            }
+
+            Serial.end();
+            Serial.begin(uart_baud_list[uart_mon_mode_index], SERIAL_8N1,
+                         uart_io_list[uart_mon_mode_index][0],
+                         uart_io_list[uart_mon_mode_index][1]);
+            M5.Display.drawPng(uart_mon_img_list[uart_mon_mode_index], ~0u, 0,
+                               0);
+        }
+
+        // Grove => USB
+        size_t rx_len = Serial.available();
+        if (rx_len) {
+            for (size_t i = 0; i < rx_len; i++) {
+                uint8_t c = Serial.read();
+                USBSerial.write(c);
+                M5.Display.fillRect(86, 31, 128 - 86, 9);
+                M5.Display.setCursor(93, 33);
+                M5.Display.setTextColor((random(0, 255) << 16 |
+                                         random(0, 255) << 8 | random(0, 255)),
+                                        TFT_BLACK);
+                M5.Display.printf("0x%02X", c);
             }
         }
 
-        lcd.clear(TFT_WHITE);
-        delay(500);
-        lcd.clear(TFT_RED);
-        delay(500);
-        lcd.clear(TFT_GREEN);
-        delay(500);
-        lcd.clear(TFT_BLUE);
-        delay(500);
-        lcd.clear(TFT_BLACK);
-        delay(500);
-
-        lcd.setFont(&fonts::efontCN_24_b);
-        lcd.drawCenterString("ATOM S3", 64, 0);
-        lcd.drawFastHLine(0, 26, 128);
-
-        btn_canvas.setColorDepth(16);
-        btn_canvas.createSprite(128, 18);
-        btn_canvas.setTextWrap(false);
-        btn_canvas.setTextScroll(false);
-        btn_canvas.setFont(&fonts::efontCN_16);
-        btn_canvas.setTextColor(TFT_GREEN);
-        btn_canvas.printf("Button count: 0");
-        btn_canvas.pushSprite(0, 28);
-
-        imu_canvas.setColorDepth(16);
-        imu_canvas.createSprite(128, 38);
-        imu_canvas.setTextWrap(false);
-        imu_canvas.setTextScroll(false);
-        imu_canvas.setFont(&fonts::efontCN_12);
-        imu_canvas.setTextColor(TFT_ORANGE);
-
-        ir_canvas.setColorDepth(16);
-        ir_canvas.createSprite(128, 18);
-        ir_canvas.setTextWrap(false);
-        ir_canvas.setTextScroll(false);
-        ir_canvas.setFont(&fonts::efontCN_16);
-        ir_canvas.setTextColor(TFT_RED);
-
-        wifi_canvas.setColorDepth(16);
-        wifi_canvas.createSprite(128, 40);
-        wifi_canvas.setFont(&fonts::efontCN_12);
-        wifi_canvas.printf("WiFi scaning...");
-        wifi_canvas.pushSprite(0, 98);
-
-        // IMU 初始化
-        imu.begin();
-
-        USBSerial.printf("ATOM-S3-LCD\r\n");
-    } else if (device_type == ATOM_S3) {
-        // Neo Pixel LED
-        oled.begin();
-        oled.setRotation(1);
-        oled.setFont(&fonts::efontCN_24_b);
-        oled.drawCenterString("ATOMS3 Lite", 64, 16);
-        neopixel_init();
-        update_neopixel(
-            (neopixel_color_list[neopixel_color_index] >> 16 & 0xFF),
-            (neopixel_color_list[neopixel_color_index] >> 8 & 0xFF),
-            (neopixel_color_list[neopixel_color_index] & 0xFF));
+        // USB => Grove
+        size_t tx_len = USBSerial.available();
+        if (tx_len) {
+            for (size_t i = 0; i < tx_len; i++) {
+                uint8_t c = USBSerial.read();
+                Serial.write(c);
+                M5.Display.fillRect(86, 41, 128 - 86, 9, TFT_BLACK);
+                M5.Display.setCursor(93, 43);
+                M5.Display.setTextColor((random(0, 255) << 16 |
+                                         random(0, 255) << 8 | random(0, 255)),
+                                        TFT_BLACK);
+                M5.Display.printf("0x%02X", c);
+            }
+        }
     }
 
-    // IR
+    void stop() {
+        Serial.end();
+        M5.Display.setTextColor(TFT_WHITE, TFT_BLACK);
+        gpio_reset_pin((gpio_num_t)1);
+        gpio_reset_pin((gpio_num_t)2);
+    }
+
+    // not use canvas :)
+    void draw() {
+    }
+};
+
+class func_pwm_t : public func_base_t {
+    const unsigned char* pwm_img_list[4] = {io_pwm_01_img, io_pwm_02_img,
+                                            io_pwm_03_img, io_pwm_04_img};
+    uint8_t pwm_mode_index               = 0;
+    uint8_t pwm_duty                     = 128;
+
+    void start() {
+        M5.Display.drawPng(pwm_img_list[pwm_mode_index], ~0u, 0, 0);
+        M5.Display.setFont(&fonts::efontCN_16_b);
+        M5.Display.drawCenterString("F: 1Khz", 90, 52);
+
+        ledcSetup(0, 1000, 8);
+        ledcSetup(1, 1000, 8);
+        ledcAttachPin(1, 0);
+        ledcAttachPin(2, 1);
+        ledcWrite(0, pwm_duty);
+        ledcWrite(1, pwm_duty);
+
+        drawDuty(pwm_duty);
+    }
+
+    void update(bool btn_click) {
+        if (btn_click) {
+            pwm_mode_index++;
+            if (pwm_mode_index > 3) {
+                pwm_mode_index = 0;
+            }
+            M5.Display.drawPng(pwm_img_list[pwm_mode_index], ~0u, 0, 0);
+            M5.Display.drawCenterString("F: 1Khz", 90, 52);
+            if (pwm_mode_index != 0) {
+                pwm_duty = 0;
+            } else {
+                pwm_duty = 0xF;
+            }
+            ledcWrite(0, pwm_duty);
+            ledcWrite(1, pwm_duty);
+            drawDuty(pwm_duty);
+        }
+
+        if (USBSerial.available()) {
+            pwm_duty = (uint8_t)USBSerial.read();
+            if (pwm_mode_index <= 1) {
+                ledcWrite(0, pwm_duty);
+                ledcWrite(1, pwm_duty);
+            }
+
+            if (pwm_mode_index == 2) {
+                ledcWrite(1, 0);
+                ledcWrite(0, pwm_duty);
+            }
+
+            if (pwm_mode_index == 3) {
+                ledcWrite(1, pwm_duty);
+                ledcWrite(0, 0);
+            }
+            drawDuty(pwm_duty);
+        }
+    }
+
+    void stop() {
+        ledcDetachPin(1);
+        ledcDetachPin(2);
+        gpio_reset_pin((gpio_num_t)1);
+        gpio_reset_pin((gpio_num_t)2);
+    }
+
+    void drawDuty(int duty) {
+        M5.Display.fillRect(80, 30, 45, 18, TFT_BLACK);
+        M5.Display.setCursor(85, 31);
+        M5.Display.setTextColor(TFT_WHITE);
+        M5.Display.printf("0x%02X", duty);
+    }
+
+    // not use canvas :)
+    void draw() {
+    }
+};
+
+class func_adc_t : public func_base_t {
+    time_t last_update_time = 0;
+
+    uint32_t ch1_vol = 0;
+    uint32_t ch2_vol = 0;
+
+    void start() {
+        M5.Display.drawPng(io_adc_01_img, ~0u, 0, 0);
+        M5.Display.setFont(&fonts::efontCN_16_b);
+    }
+
+    void update(bool btn_click) {
+        if (millis() - last_update_time < 90) {
+            return;
+        }
+
+        ch1_vol = 0;
+        ch2_vol = 0;
+        for (size_t i = 0; i < 32; i++) {
+            ch1_vol += analogRead(1);
+            ch2_vol += analogRead(2);
+        }
+        drawVolValue((uint32_t)(ch1_vol / 32), (uint32_t)(ch2_vol / 32));
+        last_update_time = millis();
+    }
+
+    void stop() {
+    }
+
+    void drawVolValue(uint32_t ch1, uint32_t ch2) {
+        M5.Display.fillRect(0, 30, 50, 16, TFT_BLACK);
+        M5.Display.fillRect(28, 50, 50, 16, TFT_BLACK);
+
+        char buf[16] = {0};
+        sprintf(buf, "%.01fV", ((ch1 / 4095.0f) * 3.3f));
+        M5.Display.drawCenterString(buf, 30, 31);
+
+        sprintf(buf, "%.01fV", ((ch2 / 4095.0f) * 3.3));
+        M5.Display.drawCenterString(buf, 55, 51);
+    }
+
+    // not use canvas :)
+    void draw() {
+    }
+};
+
+class func_ir_t : public func_base_t {
+    const unsigned char* ir_img_list[2] = {ir_send_01_img, ir_send_02_img};
+    uint8_t ir_send_mode_index          = 0;
+
+    uint32_t ir_cmd          = 0;
+    time_t ir_last_send_time = 0;
+    ;
+    void start() {
+        M5.Display.drawPng(ir_img_list[ir_send_mode_index], ~0u, 0, 0);
+        M5.Display.setFont(&fonts::efontCN_16_b);
+        M5.Display.setTextColor(TFT_PURPLE);
+    }
+
+    void update(bool btn_click) {
+        if (btn_click) {
+            ir_send_mode_index++;
+            if (ir_send_mode_index > 1) {
+                ir_send_mode_index = 0;
+            }
+            M5.Display.drawPng(ir_img_list[ir_send_mode_index], ~0u, 0, 0);
+        }
+
+        // USB => IR
+        if (ir_send_mode_index == 0) {
+            if (USBSerial.available()) {
+                uint8_t c = USBSerial.read();
+                ir_tx_send((uint32_t)c);
+                drawIrData((uint32_t)c);
+            }
+        } else {
+            if (millis() - ir_last_send_time > 1000) {
+                ir_cmd++;
+                ir_tx_send(ir_cmd);
+                drawIrData(ir_cmd);
+                ir_last_send_time = millis();
+            }
+        }
+    }
+
+    void stop() {
+        M5.Display.setTextColor(TFT_WHITE);
+    }
+
+    void drawIrData(uint32_t _ir_cmd) {
+        M5.Display.fillRect(25, 105, 75, 20, TFT_WHITE);
+        char buf[8] = {0};
+        sprintf(buf, "0x%02X", _ir_cmd);
+        M5.Display.drawCenterString(buf, 64, 107);
+    }
+
+    // not use canvas :)
+    void draw() {
+    }
+};
+
+class func_imu_t : public func_base_t {
+    struct ball_t {
+        uint16_t x;
+        uint16_t y;
+        uint16_t r;
+    };
+
+    time_t last_imu_sample_time = 0;
+    uint16_t center_x, center_y, c1_r, c2_r;
+    float roll, pitch, yaw;
+    ball_t ball;
+
+    void start() {
+        Wire1.begin(38, 39);
+        imu.begin();
+        filter.begin(20);  // 20hz
+
+        center_x = (uint16_t)(_canvas->width() / 2);
+        center_y = (uint16_t)(_canvas->height() / 2);
+        c1_r     = (uint16_t)(_canvas->height() / 2 - 4);
+        c2_r     = (uint16_t)(_canvas->height() / 4 - 4);
+
+        ball.x = (uint16_t)(_canvas->width() / 2);
+        ball.y = (uint16_t)(_canvas->height() / 2);
+        ball.r = 5;
+    }
+
+    void update(bool btn_click) {
+        if ((millis() - last_imu_sample_time) > (1000 / 25)) {
+            float ax, ay, az, gx, gy, gz;
+
+            imu.getAccel(&ax, &ay, &az);
+            imu.getGyro(&gx, &gy, &gz);
+
+            // update the filter, which computes orientation
+            filter.updateIMU(gx, gy, gz, ax, ay, az);
+
+            roll  = filter.getRoll();
+            pitch = filter.getPitch();
+            yaw   = filter.getYaw();
+
+            // USBSerial.printf("[%ld] roll:%.01f pitch:%.01f yaw:%.01f\r\n",
+            //                  millis(), roll, pitch, yaw);
+            calculateBall(roll, pitch);
+            drawCircle();
+            needDraw();
+            last_imu_sample_time = millis();
+        }
+    }
+
+    void stop() {
+        Wire1.end();
+    }
+
+    void drawCircle() {
+        _canvas->drawCircle(center_x, center_y, c1_r,
+                            _canvas->color24to16(0xCCCC33));
+        _canvas->drawCircle(center_x, center_y, c2_r,
+                            _canvas->color24to16(0xCCCC33));
+        _canvas->drawFastHLine((_canvas->width() - _canvas->height()) / 2 + 4,
+                               center_y, _canvas->height() - 8,
+                               _canvas->color24to16(0xCCCC33));
+        _canvas->drawFastVLine(center_x, 4, _canvas->height() - 8,
+                               _canvas->color24to16(0xCCCC33));
+    }
+
+    void calculateBall(float _roll, float _pitch) {
+        if (abs(_roll) > 90) {
+            if (_roll < -90) {
+                _roll = -90;
+            } else {
+                _roll = 90;
+            }
+        }
+        if (abs(_pitch) > 90) {
+            if (_pitch < -90) {
+                _pitch = -90;
+            } else {
+                _pitch = 90;
+            }
+        }
+        uint16_t x = (uint16_t)map(_pitch, -90.0f, 90.0f, center_x - c1_r,
+                                   center_x + c1_r);
+        uint16_t y = (uint16_t)map(_roll, -90.0f, 90.0f, center_y - c1_r,
+                                   center_y + c1_r);
+        drawBall(x, y);
+    }
+
+    void drawBall(int16_t x, float y) {
+        // erase old
+        _canvas->fillCircle(ball.x, ball.y, ball.r, TFT_BLACK);
+        ball.x = x;
+        ball.y = y;
+        // draw new
+        _canvas->fillCircle(ball.x, ball.y, ball.r,
+                            _canvas->color24to16(0xCCCC33));
+    }
+};
+
+func_wifi_t func_wifi_scan;
+func_i2c_t func_i2c_scan;
+func_uart_t func_uart_mon;
+func_pwm_t func_pwm_test;
+func_adc_t func_adc_test;
+func_ir_t func_ir_send;
+func_imu_t func_imu_test;
+
+func_base_t* func_list[7] = {&func_wifi_scan, &func_i2c_scan, &func_uart_mon,
+                             &func_pwm_test,  &func_adc_test, &func_ir_send,
+                             &func_imu_test};
+
+static char btn_state_text[][16] = {"", "wasHold", "wasClicked"};
+
+static func_index_t func_index = FUNC_WIFI_SCAN;
+static bool is_entry_func      = false;
+
+static uint16_t ir_addr         = 0;
+static rmt_item32_t* ir_items   = NULL;
+static size_t ir_length         = 0;
+static ir_builder_t* ir_builder = NULL;
+
+static uint8_t mac_addr[6];
+
+M5Canvas canvas(&M5.Display);
+
+void setup() {
+    M5.begin();
+    USBSerial.begin(115200);
+
+    esp_efuse_mac_get_default(mac_addr);
+    ir_addr = (mac_addr[2] << 24) | (mac_addr[3] << 16) | (mac_addr[4] << 8) |
+              mac_addr[5];
+
+    M5.Display.begin();
+
+    canvas.setColorDepth(16);
+    canvas.createSprite(M5.Display.width(),
+                        M5.Display.height() - LAYOUT_OFFSET_Y);
+
+    boot_animation();
+    delay(500);
+
+    // Start entry funciton list
+    M5.Display.drawPng(func_img_list[func_index], ~0u, 0, 0);
+
     ir_tx_init();
-
-    // BLE
-    xTaskCreatePinnedToCore(ble_task, "ble_task", 4096 * 8, NULL, 1, NULL,
-                            APP_CPU_NUM);
-
-    // WIFI
-    xTaskCreatePinnedToCore(wifi_task, "wifi_task", 4096 * 8, NULL, 1, NULL,
-                            APP_CPU_NUM);
-
-    xTaskCreatePinnedToCore(io_task, "io_task", 4096 * 2, NULL, 1, NULL,
-                            APP_CPU_NUM);
 }
 
 void loop() {
-    // 按键
-    if (digitalRead(BTN_GPIO) == LOW) {
-        delay(5);
-        if (digitalRead(BTN_GPIO) == LOW) {
-            btn_pressd_flag = true;
-            btn_pressd_count++;
-            neopixel_color_index += 1;
-            if (neopixel_color_index > 4) {
-                neopixel_color_index = 0;
-            }
-            while (digitalRead(BTN_GPIO) == LOW)
-            {
-                delay(300);
-            }
+    M5.update();
+
+    int btn_state = M5.BtnA.wasHold() ? 1 : M5.BtnA.wasClicked() ? 2 : 0;
+
+    if (btn_state != 0) {
+        // USBSerial.printf("BTN %s\r\n", btn_state_text[btn_state]);
+    }
+
+    if ((btn_state == 2) && !is_entry_func) {
+        // next function
+        func_index = (func_index_t)(func_index + 1);
+        if (func_index == FUNC_MAX) {
+            func_index = FUNC_WIFI_SCAN;
         }
+        M5.Display.drawPng(func_img_list[func_index], ~0u, 0, 0);
     }
 
-    if (btn_pressd_flag) {
-        if (device_type == ATOM_S3_LCD) {
-            btn_canvas.setTextColor(TFT_GREEN);
-            btn_canvas.setCursor(0, 0);
-            btn_canvas.clear();
-            // btn_canvas.printf("BTN OK %d\r\n", btn_pressd_count);
-            btn_canvas.printf("Button count: %d", btn_pressd_count);
-            btn_canvas.pushSprite(0, 28);
-        } else if (device_type == ATOM_S3) {
-            update_neopixel(
-                (neopixel_color_list[neopixel_color_index] >> 16 & 0xFF),
-                (neopixel_color_list[neopixel_color_index] >> 8 & 0xFF),
-                (neopixel_color_list[neopixel_color_index] & 0xFF));
-        }
-        USBSerial.printf("BTN Pressed %d\r\n", btn_pressd_count);
-        btn_pressd_flag = false;
-    }
-
-    // IMU
-    if ((device_type == ATOM_S3_LCD) &&
-        ((millis() - last_imu_print_time) > 300)) {
-        float ax;
-        float ay;
-        float az;
-        float gx;
-        float gy;
-        float gz;
-        float t;
-        float roll;
-        float pitch;
-        float yaw;
-
-        imu.getAccel(&ax, &ay, &az);
-        imu.getGyro(&gx, &gy, &gz);
-        imu.getTemp(&t);
-
-        imu_canvas.setCursor(0, 0);
-        imu_canvas.clear();
-        imu_canvas.setFont(&fonts::efontCN_16);
-        imu_canvas.printf("IMU:\r\n");
-        imu_canvas.setFont(&fonts::efontCN_12);
-        imu_canvas.printf("%0.2f %0.2f %0.2f\r\n", ax, ay, az);
-        imu_canvas.printf("%0.2f %0.2f %0.2f\r\n", gx, gy, gz);
-        imu_canvas.pushSprite(0, 44);
-        USBSerial.printf(
-            "IMU\r\nax:%f ay:%f az:%f gx:%f gy:%f gz:%f temp:%f\r\n", ax, ay,
-            az, gx, gy, gz, t);
-        last_imu_print_time = millis();
-    }
-
-    if (millis() - last_ir_send_time > 1000) {
-        ir_tx_test();
-        if (device_type == ATOM_S3_LCD) {
-            ir_canvas.setCursor(0, 0);
-            ir_canvas.clear();
-            ir_canvas.printf("IR: %02X %02X\r\n", ir_addr, ir_cmd);
-            ir_canvas.pushSprite(0, 82);
+    if (btn_state == 1) {
+        if (!is_entry_func) {
+            is_entry_func = true;
+            // USBSerial.printf("Entry function <%s>\r\n",
+            //                  func_name_text[func_index]);
+            // entry function
+            func_list[func_index]->entry(&canvas);
         } else {
-
+            is_entry_func = false;
+            // USBSerial.printf("Leave function <%s>\r\n",
+            //                  func_name_text[func_index]);
+            // leave function
+            func_list[func_index]->leave();
+            M5.Display.drawPng(func_img_list[func_index], ~0u, 0, 0);
         }
-        USBSerial.printf("IR Send >>> addr:%02X cmd:%02X\r\n", ir_addr, ir_cmd);
-        last_ir_send_time = millis();
     }
 
-    if (wifi_scan_done_flag) {
-        if (device_type == ATOM_S3_LCD) {
-            wifi_canvas.clear();
-            wifi_canvas.setCursor(0, 0);
-            wifi_canvas.printf("WiFi scan total: %d\r\n", WiFi.scanComplete());
-            wifi_canvas.printf("1. %s %d", WiFi.SSID(0).c_str(), WiFi.RSSI(0));
-            wifi_canvas.pushSprite(0, 98);
-        } else {
-            oled.clear();
-            oled.setCursor(0, 0);
-            oled.setFont(&fonts::efontCN_10);
-            oled.printf("MAC: %02X%02X%02X%02X%02X%02X\r\n", MAC2STR(mac_addr));
-            oled.setFont(&fonts::efontCN_12);
-            oled.printf("Wi-Fi扫描个数: %d\r\n", WiFi.scanComplete());
-            oled.printf("信号最好: %s\r\n信号值: %d", WiFi.SSID(0).c_str(), WiFi.RSSI(0));
-        }
-        USBSerial.printf("WiFi scan total: %d\r\n", WiFi.scanComplete());
-        USBSerial.printf("1. %s %d", WiFi.SSID(0).c_str(), WiFi.RSSI(0));
-        wifi_scan_done_flag = false;
+    if (is_entry_func) {
+        func_list[func_index]->update(btn_state == 2 ? true : false);
+        func_list[func_index]->draw();
     }
 
     delay(10);
 }
 
-static void neopixel_init(void) {
-    // Init RMT
-    rmt_config_t config = {.rmt_mode      = RMT_MODE_TX,
-                           .channel       = RMT_CHANNEL_0,
-                           .gpio_num      = (gpio_num_t)NEO_GPIO,
-                           .clk_div       = 80,
-                           .mem_block_num = 1,
-                           .flags         = 0,
-                           .tx_config     = {
-                                   .carrier_freq_hz      = 38000,
-                                   .carrier_level        = RMT_CARRIER_LEVEL_HIGH,
-                                   .idle_level           = RMT_IDLE_LEVEL_LOW,
-                                   .carrier_duty_percent = 33,
-                                   .carrier_en           = false,
-                                   .loop_en              = false,
-                                   .idle_output_en       = true,
-                           }};
-    // set counter clock to 40MHz
-    config.clk_div = 2;
-    ESP_ERROR_CHECK(rmt_config(&config));
-    ESP_ERROR_CHECK(rmt_driver_install(config.channel, 0, 0));
-    // install ws2812 driver
-    led_strip_config_t strip_config =
-        LED_STRIP_DEFAULT_CONFIG(64, (led_strip_dev_t)config.channel);
-    strip = led_strip_new_rmt_ws2812(&strip_config);
-    if (!strip) {
-        USBSerial.printf("Install WS2812 driver failed");
+uint32_t circle_color_list[8] = {0xcc3300, 0xff6633, 0xffff66, 0x33cc33,
+                                 0x00ffff, 0x0000ff, 0xff3399, 0x990099};
+static void boot_animation(void) {
+    for (size_t c = 0; c < 8; c++) {
+        M5.Display.fillArc(0, M5.Display.height(), c * 23, (c + 1) * 23, 270, 0,
+                           circle_color_list[c]);
+        delay(200);
     }
-}
-
-static void update_neopixel(uint8_t r, uint8_t g, uint8_t b) {
-    ESP_ERROR_CHECK(strip->set_pixel(strip, 0, r, g, b));
-    ESP_ERROR_CHECK(strip->refresh(strip, 0));
 }
 
 static void ir_tx_init(void) {
@@ -374,11 +725,9 @@ static void ir_tx_init(void) {
     ir_builder = ir_builder_rmt_new_nec(&ir_builder_config);
 }
 
-static void ir_tx_test(void) {
-    ir_cmd++;
-    USBSerial.printf("Send command 0x%x to address 0x%x\r\n", ir_cmd, ir_addr);
+static void ir_tx_send(uint32_t _ir_cmd) {
     // Send new key code
-    ESP_ERROR_CHECK(ir_builder->build_frame(ir_builder, ir_addr, ir_cmd));
+    ESP_ERROR_CHECK(ir_builder->build_frame(ir_builder, ir_addr, _ir_cmd));
     ESP_ERROR_CHECK(ir_builder->get_result(ir_builder, &ir_items, &ir_length));
     // To send data according to the waveform items.
     rmt_write_items(IR_RMT_TX_CHANNEL, ir_items, ir_length, false);
@@ -387,128 +736,4 @@ static void ir_tx_test(void) {
     ESP_ERROR_CHECK(ir_builder->build_repeat_frame(ir_builder));
     ESP_ERROR_CHECK(ir_builder->get_result(ir_builder, &ir_items, &ir_length));
     rmt_write_items(IR_RMT_TX_CHANNEL, ir_items, ir_length, false);
-}
-
-static void ble_task(void *) {
-    BLEDevice::init(name_buffer);
-    BLEServer *pServer                 = BLEDevice::createServer();
-    BLEService *pService               = pServer->createService(SERVICE_UUID);
-    BLECharacteristic *pCharacteristic = pService->createCharacteristic(
-        CHARACTERISTIC_UUID,
-        BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE);
-
-    pCharacteristic->setValue("Hello world from " DEVICE_NAME "!");
-    pService->start();
-    // BLEAdvertising *pAdvertising = pServer->getAdvertising();  // this still
-    // is working for backward compatibility
-    BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-    pAdvertising->addServiceUUID(SERVICE_UUID);
-    pAdvertising->setScanResponse(true);
-    pAdvertising->setMinPreferred(
-        0x06);  // functions that help with iPhone connections issue
-    pAdvertising->setMinPreferred(0x12);
-    BLEDevice::startAdvertising();
-
-    static char buffer[64] = {0};
-
-    size_t ble_count = 0;
-    while (1) {
-        if (millis() - last_ble_change_time > 1000) {
-            ble_count++;
-            // sprintf(buffer, "Hello world from %s! %d", DEVICE_NAME, millis()
-            // / 1000);
-            sprintf(buffer, "Hello world from %s! %d", DEVICE_NAME, ble_count);
-            pCharacteristic->setValue(buffer);
-            USBSerial.println("BLE update ok");
-            last_ble_change_time = millis();
-        }
-        delay(10);
-    }
-}
-
-static void wifi_task(void *) {
-    WiFi.mode(WIFI_MODE_APSTA);
-
-    WiFi.softAP(name_buffer, "88888888");
-    IPAddress myIP = WiFi.softAPIP();
-    USBSerial.printf("AP:\r\nSSID: %s\r\nPSWD: %s\r\nIP address: ", name_buffer,
-                     "88888888");
-    USBSerial.println(myIP);
-    WiFi.disconnect();
-
-    WiFiUDP udp_ap;
-    udp_ap.begin(WiFi.softAPIP(), udp_broadcast_port);
-
-    size_t udp_count = 0;
-    while (1) {
-        if (millis() - last_wifi_scan_time > 20000) {
-            USBSerial.println("\r\nWiFi scan start");
-
-            // WiFi.scanNetworks will return the number of networks found
-            int n = WiFi.scanNetworks();
-            USBSerial.println("WiFi scan done");
-            if (n == 0) {
-                USBSerial.println("no networks found");
-            } else {
-                USBSerial.print(n);
-                USBSerial.println(" networks found");
-                for (int i = 0; i < n; ++i) {
-                    // Print SSID and RSSI for each network found
-                    USBSerial.print(i + 1);
-                    USBSerial.print(": ");
-                    USBSerial.print(WiFi.SSID(i));
-                    USBSerial.print(" (");
-                    USBSerial.print(WiFi.RSSI(i));
-                    USBSerial.print(")");
-                    USBSerial.println(
-                        (WiFi.encryptionType(i) == WIFI_AUTH_OPEN) ? " " : "*");
-                    delay(10);
-                }
-            }
-            USBSerial.println("");
-            last_wifi_scan_time = millis();
-            wifi_scan_done_flag = true;
-        }
-
-        if (millis() - last_udp_broadcast_time > 1000) {
-            udp_count++;
-            udp_ap.beginPacket(udp_ap_broadcast_addr, udp_broadcast_port);
-            udp_ap.printf("UDP broadcast count: %lu", udp_count);
-            USBSerial.printf("UDP broadcast %s\r\n",
-                             udp_ap.endPacket() == 1 ? "OK" : "ERROR");
-            last_udp_broadcast_time = millis();
-        }
-        delay(10);
-    }
-}
-
-static void io_task(void *) {
-    if (device_type == ATOM_S3) {
-        for (size_t i = 0; i < sizeof(atom_s3_gpio_list); i++) {
-            pinMode(atom_s3_gpio_list[i], OUTPUT);
-            digitalWrite(atom_s3_gpio_list[i], LOW);
-        }
-        Wire.end();
-    } else if (device_type == ATOM_S3_LCD) {
-        for (size_t i = 0; i < sizeof(atom_s3_lcd_gpio_list); i++) {
-            pinMode(atom_s3_lcd_gpio_list[i], OUTPUT);
-            digitalWrite(atom_s3_lcd_gpio_list[i], LOW);
-        }
-    }
-
-    while (true) {
-        if (device_type == ATOM_S3) {
-            for (size_t i = 0; i < sizeof(atom_s3_gpio_list); i++) {
-                digitalWrite(atom_s3_gpio_list[i],
-                             !digitalRead(atom_s3_gpio_list[i]));
-                delay(200);
-            }
-        } else if (device_type == ATOM_S3_LCD) {
-            for (size_t i = 0; i < sizeof(atom_s3_lcd_gpio_list); i++) {
-                digitalWrite(atom_s3_lcd_gpio_list[i],
-                             !digitalRead(atom_s3_lcd_gpio_list[i]));
-                delay(200);
-            }
-        }
-    }
 }

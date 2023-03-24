@@ -8,7 +8,7 @@
 class MPU6886 {
    public:
     MPU6886(uint8_t deviceAddress = MPU6886_DEFAULT_ADDRESS,
-            TwoWire& i2cPort      = Wire);
+            TwoWire& i2cPort      = Wire1);
 
     int begin(void);
 

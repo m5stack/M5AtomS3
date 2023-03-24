@@ -13,7 +13,7 @@ M5AtomS3::~M5AtomS3() {
 void M5AtomS3::begin(bool LCDEnable, bool USBSerialEnable, bool I2CEnable,
                      bool LEDEnable) {
     if (I2CEnable) {
-        Wire.begin(38, 39, 100000UL);
+        Wire1.begin(38, 39, 100000UL);
     }
 
     if (USBSerialEnable) {
