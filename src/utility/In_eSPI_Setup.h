@@ -3,6 +3,9 @@
 #define ST7789_DRIVER  // Full configuration option, define additional
                        // parameters below for this display
 
+#define USE_HSPI_PORT  // Use the second SPI port for the display, keeping the default 
+                       // SPI port free for use on the Atom expansion port
+
 #define TFT_DRIVER 0x7789
 #define TFT_WIDTH  129
 #define TFT_HEIGHT 129
