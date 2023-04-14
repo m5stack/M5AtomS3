@@ -1,3 +1,6 @@
+#define TFT_RGB_ORDER 0 // Use the correct RGB order for the display
+                        // Must be set before ST7789_Defines.h is included
+
 #include "In_eSPI_Drivers/ST7789_Defines.h"
 
 #define ST7789_DRIVER  // Full configuration option, define additional
