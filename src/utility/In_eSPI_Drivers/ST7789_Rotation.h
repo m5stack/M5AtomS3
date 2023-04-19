@@ -18,8 +18,8 @@ switch (rotation) {
             colstart = 35;
             rowstart = 0;
         } else {
-            colstart = 0;
-            rowstart = 0;
+            colstart = 2;
+            rowstart = 1;
         }
 #endif
         writedata(TFT_MAD_COLOR_ORDER);
@@ -43,8 +43,8 @@ switch (rotation) {
             colstart = 0;
             rowstart = 35;
         } else {
-            colstart = 0;
-            rowstart = 0;
+            colstart = 1;
+            rowstart = 2;
         }
 #endif
         writedata(TFT_MAD_MX | TFT_MAD_MV | TFT_MAD_COLOR_ORDER);
@@ -68,8 +68,8 @@ switch (rotation) {
             colstart = 35;
             rowstart = 0;
         } else {
-            colstart = 0;
-            rowstart = 80;
+            colstart = 2;
+            rowstart = 1;
         }
 #endif
         writedata(TFT_MAD_MX | TFT_MAD_MY | TFT_MAD_COLOR_ORDER);
@@ -92,8 +92,8 @@ switch (rotation) {
             colstart = 0;
             rowstart = 35;
         } else {
-            colstart = 80;
-            rowstart = 0;
+            colstart = 1;
+            rowstart = 2;
         }
 #endif
         writedata(TFT_MAD_MV | TFT_MAD_MY | TFT_MAD_COLOR_ORDER);

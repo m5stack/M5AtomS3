@@ -26,7 +26,7 @@ class M5AtomS3 {
     Button Btn = Button(41, 25, true, true);
 
     void begin(bool LCDEnable = true, bool SerialEnable = true,
-               bool I2CEnable = true, bool LEDEnable = false);
+               bool I2CEnable = false, bool LEDEnable = false);
     void update();
 };
 

@@ -1,11 +1,22 @@
+#define TFT_RGB_ORDER 0  // Use the correct RGB order for the display
+
+#define CGRAM_OFFSET  // Display has an offset that needs to be corrected
+                      // Offset corrections in In_eSPI_Drivers\ST7789_Rotation.h
+
+// Above values must be set before ST7789_Defines.h is included
+
 #include "In_eSPI_Drivers/ST7789_Defines.h"
 
 #define ST7789_DRIVER  // Full configuration option, define additional
                        // parameters below for this display
 
+#define USE_HSPI_PORT  // Use the second SPI port for the display, keeping the
+                       // default SPI port free for use on the Atom expansion
+                       // port
+
 #define TFT_DRIVER 0x7789
-#define TFT_WIDTH  129
-#define TFT_HEIGHT 129
+#define TFT_WIDTH  128
+#define TFT_HEIGHT 128
 
 #define TFT_MISO -1
 #define TFT_MOSI 21
