@@ -1,6 +1,8 @@
 #include "MPU6886.h"
 
-MPU6886::MPU6886(uint8_t deviceAddress, TwoWire& i2cPort) {
+MPU6886::MPU6886(uint8_t deviceAddress, TwoWire& i2cPort) :
+        _gyroScale(GFS_250DPS), _gRes(250.0 / 32768.0),
+        _accelScale(AFS_2G), _aRes(2.0 / 32768.0) {
     _deviceAddress = deviceAddress;
     _i2cPort       = &i2cPort;
 }
@@ -55,13 +57,8 @@ int MPU6886::begin(void) {
     writeByte(0x6b, 1 << 0);
     delay(10);
 
-    // ACCEL_CONFIG(0x1c) : +-8G
-    writeByte(0x1c, 0x10);
-    delay(1);
-
-    // GYRO_CONFIG(0x1b) : +-2000dps
-    writeByte(0x1b, 0x18);
-    delay(1);
+    setAccelFsr(AFS_8G);
+    setGyroFsr(GFS_2000DPS);
 
     // CONFIG(0x1a)
     writeByte(0x1a, 0x01);
@@ -102,18 +99,60 @@ uint8_t MPU6886::whoAmI(void) {
     return readByte(0x75);
 }
 
+void MPU6886::setGyroFsr(Gscale scale) {
+    unsigned char regdata;
+    regdata = (scale << 3);
+    writeByte(MPU6886_GYRO_CONFIG, regdata);
+    delay(1);
+    _gyroScale = scale;
+    switch (_gyroScale) {
+        case GFS_250DPS:
+            _gRes = 250.0 / 32768.0;
+            break;
+        case GFS_500DPS:
+            _gRes = 500.0 / 32768.0;
+            break;
+        case GFS_1000DPS:
+            _gRes = 1000.0 / 32768.0;
+            break;
+        case GFS_2000DPS:
+            _gRes = 2000.0 / 32768.0;
+            break;
+    }
+}
+
+void MPU6886::setAccelFsr(Ascale scale) {
+    unsigned char regdata;
+    regdata = (scale << 3);
+    writeByte(MPU6886_ACCEL_CONFIG, regdata);
+    delay(1);
+    _accelScale = scale;
+    switch (_accelScale) {
+        case AFS_2G:
+            _aRes = 2.0 / 32768.0;
+            break;
+        case AFS_4G:
+            _aRes = 4.0 / 32768.0;
+            break;
+        case AFS_8G:
+            _aRes = 8.0 / 32768.0;
+            break;
+        case AFS_16G:
+            _aRes = 16.0 / 32768.0;
+            break;
+    }
+}
+
 void MPU6886::getAccel(float* ax, float* ay, float* az) {
-    float aRes = 8.0 / 32768.0;
-    *ax        = (int16_t)((readByte(0x3b) << 8) | readByte(0x3c)) * aRes;
-    *ay        = (int16_t)((readByte(0x3d) << 8) | readByte(0x3e)) * aRes;
-    *az        = (int16_t)((readByte(0x3f) << 8) | readByte(0x40)) * aRes;
+    *ax        = (int16_t)((readByte(0x3b) << 8) | readByte(0x3c)) * _aRes;
+    *ay        = (int16_t)((readByte(0x3d) << 8) | readByte(0x3e)) * _aRes;
+    *az        = (int16_t)((readByte(0x3f) << 8) | readByte(0x40)) * _aRes;
 }
 
 void MPU6886::getGyro(float* gx, float* gy, float* gz) {
-    float gRes = 2000.0 / 32768.0;
-    *gx        = (int16_t)((readByte(0x43) << 8) | readByte(0x44)) * gRes;
-    *gy        = (int16_t)((readByte(0x45) << 8) | readByte(0x46)) * gRes;
-    *gz        = (int16_t)((readByte(0x47) << 8) | readByte(0x48)) * gRes;
+    *gx        = (int16_t)((readByte(0x43) << 8) | readByte(0x44)) * _gRes;
+    *gy        = (int16_t)((readByte(0x45) << 8) | readByte(0x46)) * _gRes;
+    *gz        = (int16_t)((readByte(0x47) << 8) | readByte(0x48)) * _gRes;
 }
 
 void MPU6886::getTemp(float* t) {
