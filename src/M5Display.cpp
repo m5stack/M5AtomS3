@@ -6,11 +6,13 @@ M5Display::M5Display() : TFT_eSPI() {
 }
 
 void M5Display::begin() {
-    pinMode(16, OUTPUT);
-    digitalWrite(16, HIGH);
     TFT_eSPI::begin();
     fillScreen(0);
     setRotation(1);
+    // Set backlight _after_ TFT_eSPI::begin() to prevent flicker
+    ledcSetup(BLK_PWM_CHANNEL, BLK_PWM_FREQUENCY, BLK_PWM_RESOLUTION);
+    ledcAttachPin(BLK_PWM_PIN, BLK_PWM_CHANNEL);
+    setBrightness(BLK_PWM_MAX);
 }
 
 void M5Display::drawBitmap(int16_t x0, int16_t y0, int16_t w, int16_t h,
@@ -390,15 +392,18 @@ void M5Display::qrcode(const String &string, uint16_t x, uint16_t y,
     qrcode(buffer, x, y, width, version);
 }
 
+void M5Display::setBrightness(uint8_t brightness) {
+    if (brightness > BLK_PWM_MAX)
+        brightness = BLK_PWM_MAX;
+
+    ledcWrite(BLK_PWM_CHANNEL, brightnessToDuty[brightness]);
+}
+
 #if 0
 void M5Display::sleep() {
   startWrite();
   writecommand(ILI9341_SLPIN); // Software reset
   endWrite();
-}
-
-void M5Display::setBrightness(uint8_t brightness) {
-  ledcWrite(BLK_PWM_CHANNEL, brightness);
 }
 
 void M5Display::drawBitmap(int16_t x0, int16_t y0, int16_t w, int16_t h,

@@ -19,12 +19,18 @@ typedef enum {
 
 typedef enum { DontUsedHzk16, InternalHzk16, ExternalHzk16 } Hzk16Types;
 
+#define BLK_PWM_PIN        GPIO_NUM_16
+#define BLK_PWM_FREQUENCY  200
+#define BLK_PWM_CHANNEL    7
+#define BLK_PWM_RESOLUTION 10
+#define BLK_PWM_MAX        15
+
 class M5Display : public TFT_eSPI {
    public:
     M5Display();
     void begin();
     void sleep();
-    // void setBrightness(uint8_t brightness);
+    void setBrightness(uint8_t brightness);
     void clear(uint32_t color = 0x0000) {
         fillScreen(color);
     }
@@ -142,5 +148,10 @@ class M5Display : public TFT_eSPI {
         *pAsc16File, *pHzk16File;  // Font file pointer
 
     boolean textwrap;  // If set, 'wrap' text at right edge of display
+
+    uint16_t brightnessToDuty[BLK_PWM_MAX + 1] = {
+        0, 160, 165, 175, 190, 210, 240, 280, 330, 390, 465, 555, 660, 780, 920, 1024
+    };
+
 };
 #endif
