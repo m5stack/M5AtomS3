@@ -1,5 +1,9 @@
 # AtomS3 Library
 
+[![Arduino Compile](https://github.com/m5stack/M5AtomS3/actions/workflows/arduino-action-atoms3-compile.yml/badge.svg)](https://github.com/m5stack/M5AtomS3/actions/workflows/arduino-action-stickc-plus-compile.yml)
+[![Arduino Lint](https://github.com/m5stack/M5AtomS3/actions/workflows/Arduino-Lint-Check.yml/badge.svg)](https://github.com/m5stack/M5AtomS3/actions/workflows/Arduino-Lint-Check.yml)
+[![Clang Format](https://github.com/m5stack/M5AtomS3/actions/workflows/clang-format-check.yml/badge.svg)](https://github.com/m5stack/M5AtomS3/actions/workflows/clang-format-check.yml)
+
 中文 | [English](README_cn.md)
 
 <img src="https://static-cdn.m5stack.com/resource/docs/products/core/AtomS3/img-91894638-80df-4827-892e-cb8f50cf1041.jpg" alt="M5Atom Lite" width="350" height="350">
