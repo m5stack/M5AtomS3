@@ -27,27 +27,27 @@ void printLocalTime() {  // Output current time.  输出当前时间
     struct tm timeinfo;
     if (!getLocalTime(&timeinfo)) {  // Return 1 when the time is successfully
                                      // obtained.  成功获取到时间返回1
-        M5.Lcd.println("Failed to obtain time");
+        AtomS3.Lcd.println("Failed to obtain time");
         return;
     }
-    M5.Lcd.println(&timeinfo,
-                   "%A, %B %d \n%Y %H:%M:%S");  // Serial port output date and
-                                                // time.  串口输出日期和时间
+    AtomS3.Lcd.println(
+        &timeinfo,
+        "%A, %B %d \n%Y %H:%M:%S");  // Serial port output date and
+                                     // time.  串口输出日期和时间
 }
 
 void setup() {
-    M5.begin(true, true, false,
-             false);  // Init Atom(Initialize LCD, serial port,
-                      // 初始化 ATOM(初始化LCD、串口)
-    M5.Lcd.printf("\nConnecting to %s", ssid);
+    AtomS3.begin();  // Init Atom(Initialize LCD, serial port,
+                     // 初始化 ATOM(初始化LCD、串口)
+    AtomS3.Lcd.printf("\nConnecting to %s", ssid);
     WiFi.begin(ssid, password);  // Connect wifi and return connection status.
                                  // 连接wifi并返回连接状态
     while (WiFi.status() !=
            WL_CONNECTED) {  // If the wifi connection fails.  若wifi未连接成功
         delay(500);         // delay 0.5s.  延迟0.5s
-        M5.Lcd.print(".");
+        AtomS3.Lcd.print(".");
     }
-    M5.Lcd.println(" CONNECTED");
+    AtomS3.Lcd.println(" CONNECTED");
     configTime(gmtOffset_sec, daylightOffset_sec,
                ntpServer);  // init and get the time.  初始化并设置NTP
     printLocalTime();

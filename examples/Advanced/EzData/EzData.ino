@@ -16,12 +16,12 @@
 
 // Configure the name and password of the connected wifi and your token.
 // 配置所连接wifi的名称、密码以及你的token
-const char* ssid     = "Explore-F";
-const char* password = "xingchentansuo123";
+const char* ssid     = "WIFI_SSID";
+const char* password = "WIFI_PASSWORD";
 const char* token    = "";
 
 void setup() {
-    M5.begin();                       // Initialize M5Stack
+    AtomS3.begin();                   // Initialize M5Stack
     if (setupWifi(ssid, password)) {  // Connect to wifi.  连接到wifi
         Serial.printf("Success connecting to %s\n", ssid);
     } else {

@@ -26,17 +26,17 @@ const char *password = "66666666";
 WiFiServer server(80);
 
 void setup() {
-    M5.begin();  // Init M5AtomS3.  初始化M5AtomS3
-    M5.lcd.println(
+    AtomS3.begin();  // Init M5AtomS3.  初始化M5AtomS3
+    AtomS3.Lcd.println(
         "WIFI ACCESS POINT");  // Screen print string.  屏幕打印字符串.
-    M5.lcd.printf("Please connect:%s \nThen access to:", ssid);
+    AtomS3.Lcd.printf("Please connect:%s \nThen access to:", ssid);
     WiFi.softAP(
         ssid,
         password);  // You can remove the password parameter if you want the AP
                     // to be open.  如果你想建立开放式热点,可以删除密码
     IPAddress myIP = WiFi.softAPIP();  // Get the softAP interface IP address.
                                        // 获取AP接口IP地址
-    M5.lcd.println(myIP);
+    AtomS3.Lcd.println(myIP);
     server.begin();  // Start the established Internet of Things network server.
                      // 启动建立的物联网网络服务器
 }
@@ -48,7 +48,7 @@ void loop() {
                            // 检查有没有设备通过网络向M5AtomS3网络服务器发送请求
 
     if (client) {  // if you get a client.  如果收到请求
-        M5.lcd.print("New Client:");
+        AtomS3.Lcd.print("New Client:");
         String currentLine =
             "";  // make a String to hold incoming data from the client.
                  // 创建一个String来保存来自客户端的传入数据
@@ -73,7 +73,7 @@ void loop() {
                         // HTTP/1.1 200 OK) HTTP的开头总是以响应代码开始(例如
                         // HTTP/1.1 200 OK) and a content-type so the client
                         // knows what's coming, then a blank line:
-                        //然后是content-type，这样客户端就知道接下来会发生什么，然后是空行:
+                        // 然后是content-type，这样客户端就知道接下来会发生什么，然后是空行:
                         client.println("HTTP/1.1 200 OK");
                         client.println("Content-type:text/html");
                         client.println();
@@ -110,9 +110,9 @@ void loop() {
                 // Check to see if the client request was "GET /H" or "GET /L":
                 // 检查客户端请求是“GET /High”还是“GET /Low”:
                 if (currentLine.endsWith("GET /High")) {
-                    M5.Lcd.print("ON\n");
+                    AtomS3.Lcd.print("ON\n");
                 } else if (currentLine.endsWith("GET /Low")) {
-                    M5.Lcd.print("OFF\n");
+                    AtomS3.Lcd.print("OFF\n");
                 }
             }
         }

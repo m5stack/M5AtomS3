@@ -24,37 +24,37 @@ const char* ssid     = "your-ap";
 const char* password = "your-password";
 
 void setup() {
-    M5.begin();                  // Init M5AtomS3. 初始化 M5AtomS3
+    AtomS3.begin();              // Init M5AtomS3. 初始化 M5AtomS3
     WiFi.begin(ssid, password);  // Connect wifi and return connection status.
                                  // 连接wifi并返回连接状态
-    M5.lcd.print("Waiting Wifi Connect");
+    AtomS3.Lcd.print("Waiting Wifi Connect");
     while (WiFi.status() !=
            WL_CONNECTED) {  // If the wifi connection fails.  若wifi未连接成功
         delay(1000);
-        M5.lcd.print(".");
+        AtomS3.Lcd.print(".");
     }
-    M5.lcd.println("\nWiFi Connected!");
-    M5.lcd.print("WiFi Connect To: ");
-    M5.lcd.println(WiFi.SSID());  // Output Network name.  输出网络名称
-    M5.lcd.print("IP address: ");
-    M5.lcd.println(WiFi.localIP());  // Output IP Address.  输出IP地址
+    AtomS3.Lcd.println("\nWiFi Connected!");
+    AtomS3.Lcd.print("WiFi Connect To: ");
+    AtomS3.Lcd.println(WiFi.SSID());  // Output Network name.  输出网络名称
+    AtomS3.Lcd.print("IP address: ");
+    AtomS3.Lcd.println(WiFi.localIP());  // Output IP Address.  输出IP地址
 
     ArduinoOTA.setHostname(
         "M5AtomS3");  // Set the network port name.  设置网络端口名称
     ArduinoOTA.setPassword("666666");  // Set the network port connection
                                        // password.  设置网络端口连接的密码
-    ArduinoOTA.begin();            // Initialize the OTA.  初始化OTA
-    M5.lcd.println("OTA ready!");  // M5.lcd port output format string.
-                                   // 串口输出格式化字符串
+    ArduinoOTA.begin();                // Initialize the OTA.  初始化OTA
+    AtomS3.Lcd.println("OTA ready!");  // AtomS3.Lcd port output format string.
+                                       // 串口输出格式化字符串
 }
 
 void loop() {
     ArduinoOTA.handle();  // Continuously check for update requests.
                           // 持续检测是否有更新请求
-    M5.update();
-    if (M5.Btn.isPressed()) {  // if botton is Pressed.  如果按键按下
-        ArduinoOTA.end();      // Ends the ArduinoOTA service.  结束OTA服务
-        M5.lcd.println("OTA End!");
+    AtomS3.update();
+    if (AtomS3.BtnA.isPressed()) {  // if botton is Pressed.  如果按键按下
+        ArduinoOTA.end();  // Ends the ArduinoOTA service.  结束OTA服务
+        AtomS3.Lcd.println("OTA End!");
         delay(1000);
     }
 }

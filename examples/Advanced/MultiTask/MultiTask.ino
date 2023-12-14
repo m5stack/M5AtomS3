@@ -16,10 +16,9 @@
 void task1(void* pvParameters) {  // Define the tasks to be executed in
                                   // thread 1.  定义线程1内要执行的任务
     while (1) {  // Keep the thread running.  使线程一直运行
-        USBSerial.print("task1 Uptime (ms): ");
-        USBSerial.println(
-            millis());  // The running time of the serial port
-                        // printing program.  串口打印程序运行的时间
+        Serial.print("task1 Uptime (ms): ");
+        Serial.println(millis());  // The running time of the serial port
+                                   // printing program.  串口打印程序运行的时间
         delay(
             100);  // With a delay of 100ms, it can be seen in the serial
                    // monitor that every 100ms, thread 1 will be executed once.
@@ -29,29 +28,28 @@ void task1(void* pvParameters) {  // Define the tasks to be executed in
 
 void task2(void* pvParameters) {
     while (1) {
-        USBSerial.print("task2 Uptime (ms): ");
-        USBSerial.println(millis());
+        Serial.print("task2 Uptime (ms): ");
+        Serial.println(millis());
         delay(200);
     }
 }
 
 void task3(void* pvParameters) {
     while (1) {
-        USBSerial.print("task3 Uptime (ms): ");
-        USBSerial.println(millis());
+        Serial.print("task3 Uptime (ms): ");
+        Serial.println(millis());
         delay(1000);
     }
 }
 
 void setup() {
-    M5.begin(true, true, false,
-             false);  // Init AtomS3(Initialize LCD, serial port).
-                      // 初始化 AtomS3(初始化LCD、串口)
+    AtomS3.begin();  // Init AtomS3(Initialize LCD, serial port).
+                     // 初始化 AtomS3(初始化LCD、串口)
     // Creat Task1.  创建线程1
     xTaskCreatePinnedToCore(
         task1,    // Function to implement the task.
                   // 线程对应函数名称(不能有返回值)
-        "task1",  //线程名称
+        "task1",  // 线程名称
         4096,     // The size of the task stack specified as the number of *
                   // bytes.任务堆栈的大小(字节)
         NULL,     // Pointer that will be used as the parameter for the task *
@@ -68,5 +66,5 @@ void setup() {
 }
 
 void loop() {
-    M5.Lcd.print("See serial port for task details");
+    AtomS3.Lcd.print("See serial port for task details");
 }

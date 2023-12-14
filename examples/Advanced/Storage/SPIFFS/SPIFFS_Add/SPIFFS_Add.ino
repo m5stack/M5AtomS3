@@ -21,29 +21,29 @@ String file_name =
 bool SPIFFS_FORMAT =
     true;  // Whether to initialize the SPIFFS.  是否初始化SPIFFS
 // You don't need to format the flash file system every time you use it.
-//无需每次使用闪存都进行格式化
+// 无需每次使用闪存都进行格式化
 
 void setup() {
-    M5.begin();  // Init M5Atom.  初始化 M5ATOM
+    AtomS3.begin();  // Init M5Atom.  初始化 M5ATOM
     if (SPIFFS_FORMAT) {
-        M5.Lcd.println(
+        AtomS3.Lcd.println(
             "\nSPIFFS format start...");  // Serial port output format String.
                                           // 串口输出格式化字符串
         SPIFFS.format();                  // Formatting SPIFFS.  格式化SPIFFS
-        M5.Lcd.println("SPIFFS format finish");
+        AtomS3.Lcd.println("SPIFFS format finish");
     }
     if (SPIFFS.begin()) {  // Start SPIFFS, return 1 on success.
                            // 启动闪存文件系统,若成功返回1
-        M5.Lcd.println("\nSPIFFS Started.");
+        AtomS3.Lcd.println("\nSPIFFS Started.");
     } else {
-        M5.Lcd.println("SPIFFS Failed to Start.");
+        AtomS3.Lcd.println("SPIFFS Failed to Start.");
     }
 
     if (SPIFFS.exists(
             file_name)) {  // Check whether the file_name file exists in the
                            // flash memory.  确认闪存中是否有file_name文件
-        M5.Lcd.println("FOUND.");
-        M5.Lcd.println(file_name);
+        AtomS3.Lcd.println("FOUND.");
+        AtomS3.Lcd.println(file_name);
 
         File dataFile = SPIFFS.open(
             file_name,
@@ -55,11 +55,11 @@ void setup() {
                                         // 向dataFile添加字符串信息
         dataFile.close();  // Close the file when writing is complete.
                            // 完成写入后关闭文件
-        M5.Lcd.println("Finished Appending data to SPIFFS");
+        AtomS3.Lcd.println("Finished Appending data to SPIFFS");
     } else {
-        M5.Lcd.println("NOT FOUND.");
-        M5.Lcd.print(file_name);
-        M5.Lcd.println("is creating.");
+        AtomS3.Lcd.println("NOT FOUND.");
+        AtomS3.Lcd.print(file_name);
+        AtomS3.Lcd.println("is creating.");
         File dataFile = SPIFFS.open(
             file_name,
             "w");  // Create aFile object dafaFile to write information to
@@ -67,7 +67,7 @@ void setup() {
                    // 建立File对象dafaFile用于向SPIFFS中的file_name写入信息
         dataFile.close();  // Close the file when writing is complete.
                            // 完成写入后关闭文件
-        M5.Lcd.println("Please disable format and Reupload");
+        AtomS3.Lcd.println("Please disable format and Reupload");
     }
 }
 

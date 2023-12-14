@@ -17,7 +17,7 @@
 Preferences preferences;
 
 void setup() {
-    M5.begin();  // Init AtomS3.  初始化 AtomS3
+    AtomS3.begin();  // Init AtomS3.  初始化 AtomS3
     preferences.begin(
         "my-app",
         false);  // We will open storage in RW-mode (second parameter has to be
@@ -36,14 +36,14 @@ void setup() {
              // exist, return a default value of 0.
              // 在当前空间中读取counter的值(若不存在为0),并赋值给counter
     counter++;  // Increase counter by 1.  使计数器的值加一
-    M5.Lcd.printf(
+    AtomS3.Lcd.printf(
         "Current counter value: %u\n",
         counter);  // Print the counter to Serial Monitor.  串口输出计数器的值
     preferences.putUInt(
         "counter",
         counter);  // Store the counter to the Preferences.  存储计数器的值
     preferences.end();  // Close the Preferences.  关闭Preferences
-    M5.Lcd.println("Restarting in 10 seconds...");
+    AtomS3.Lcd.println("Restarting in 10 seconds...");
     delay(10000);   // delay 10.  延迟10s
     ESP.restart();  // Restart.  重启
 }

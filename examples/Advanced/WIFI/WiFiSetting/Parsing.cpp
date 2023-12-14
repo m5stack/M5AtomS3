@@ -25,7 +25,7 @@
 #include "WiFiClient.h"
 #include "WiFiServer.h"
 
-//#define DEBUG_ESP_HTTP_SERVER
+// #define DEBUG_ESP_HTTP_SERVER
 #ifdef DEBUG_ESP_PORT
 #define DEBUG_OUTPUT DEBUG_ESP_PORT
 #else

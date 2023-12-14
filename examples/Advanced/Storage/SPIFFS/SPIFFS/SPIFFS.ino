@@ -20,21 +20,21 @@ String file_name =
 bool SPIFFS_FORMAT =
     false;  // Whether to initialize the SPIFFS.  是否初始化SPIFFS
 // You don't need to format the flash file system every time you use it.
-//无需每次使用闪存都进行格式化
+// 无需每次使用闪存都进行格式化
 
 void setup() {
-    M5.begin();  // Init M5Atom.  初始化 M5ATOM
+    AtomS3.begin();  // Init M5Atom.  初始化 M5ATOM
     if (SPIFFS_FORMAT) {
-        M5.Lcd.println(
+        AtomS3.Lcd.println(
             "\nSPIFFS format start...");  // Serial port output format String.
                                           // 串口输出格式化字符串
         SPIFFS.format();                  // Formatting SPIFFS.  格式化SPIFFS
-        M5.Lcd.println("SPIFFS format finish");
+        AtomS3.Lcd.println("SPIFFS format finish");
     }
 
     if (SPIFFS.begin()) {  // Start SPIFFS, return 1 on success.
                            // 启动闪存文件系统,若成功返回1
-        M5.Lcd.println("SPIFFS Begin.");
+        AtomS3.Lcd.println("SPIFFS Begin.");
         // Write operation
         File dataFile = SPIFFS.open(
             file_name,
@@ -46,24 +46,24 @@ void setup() {
                                                // 向dataFile写入字符串信息并换行
         dataFile.close();  // Close the file when writing is complete.
                            // 完成写入后关闭文件
-        M5.Lcd.println("Finished Writing data to SPIFFS");
+        AtomS3.Lcd.println("Finished Writing data to SPIFFS");
     } else {
-        M5.Lcd.println(
+        AtomS3.Lcd.println(
             "SPIFFS Failed to Begin.\nYou need to Run SPIFFS_Add.ino first");
     }
 }
 
 void loop() {
-    M5.update();  // Check whether the key is pressed.  检测按键是否按下
-    if (M5.Btn.isPressed()) {  // If the button is pressed.  如果按键按下
+    AtomS3.update();  // Check whether the key is pressed.  检测按键是否按下
+    if (AtomS3.BtnA.isPressed()) {  // If the button is pressed.  如果按键按下
         if (SPIFFS.exists(
                 file_name)) {  // Check whether the file_name file exists in the
                                // flash memory.  确认闪存中是否有file_name文件
-            M5.Lcd.println("FOUND.");
-            M5.Lcd.println(file_name);
+            AtomS3.Lcd.println("FOUND.");
+            AtomS3.Lcd.println(file_name);
         } else {
-            M5.Lcd.println("NOT FOUND.");
-            M5.Lcd.println(file_name);
+            AtomS3.Lcd.println("NOT FOUND.");
+            AtomS3.Lcd.println(file_name);
         }
         File dataFile = SPIFFS.open(
             file_name,
@@ -74,7 +74,7 @@ void loop() {
              i++) {  // Reads file contents and outputs file information through
                      // the serial port monitor.
                      // 读取文件内容并且通过串口监视器输出文件信息
-            M5.Lcd.print((char)dataFile.read());
+            AtomS3.Lcd.print((char)dataFile.read());
         }
         dataFile.close();  // Close the file after reading the file.
                            // 完成文件读取后关闭文件

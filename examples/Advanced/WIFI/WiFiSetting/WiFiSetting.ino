@@ -42,8 +42,8 @@ WebServer webServer(80);
 Preferences preferences;
 
 void setup() {
-    M5.begin();  // Init M5AtomS3.  初始化 M5AtomS3
-    M5.Lcd.setTextColor(
+    AtomS3.begin();  // Init M5AtomS3.  初始化 M5AtomS3
+    AtomS3.Lcd.setTextColor(
         YELLOW);  // Set the font color to yellow.  设置字体颜色为黄色
     preferences.begin("wifi-config");
     delay(10);
@@ -76,10 +76,10 @@ restoreConfig() { /* Check whether there is wifi configuration information
                   检测是否有wifi配置信息存储,若有返回1,无返回0 */
     wifi_ssid     = preferences.getString("WIFI_SSID");
     wifi_password = preferences.getString("WIFI_PASSWD");
-    M5.Lcd.printf(
+    AtomS3.Lcd.printf(
         "WIFI-SSID: %s\n",
         wifi_ssid);  // Screen print format string.  屏幕打印格式化字符串
-    M5.Lcd.printf("WIFI-PASSWD: %s\n", wifi_password);
+    AtomS3.Lcd.printf("WIFI-PASSWD: %s\n", wifi_password);
     WiFi.begin(wifi_ssid.c_str(), wifi_password.c_str());
 
     if (wifi_ssid.length() > 0) {
@@ -91,27 +91,27 @@ restoreConfig() { /* Check whether there is wifi configuration information
 
 boolean checkConnection() {  // Check wifi connection.  检测wifi连接情况
     int count = 0;           // count.  计数
-    M5.Lcd.print("Waiting for Wi-Fi connection");
+    AtomS3.Lcd.print("Waiting for Wi-Fi connection");
     while (count <
            30) { /* If you fail to connect to wifi within 30*350ms (10.5s),
                  return false; otherwise return true.
                  若在30*500ms(15s)内未能连上wifi,返回false;否则返回true */
         if (WiFi.status() == WL_CONNECTED) {
-            M5.Lcd.printf("\nConnected!\n");
+            AtomS3.Lcd.printf("\nConnected!\n");
             return (true);
         }
         delay(350);
-        M5.Lcd.print(".");
+        AtomS3.Lcd.print(".");
         count++;
     }
-    M5.Lcd.println("Timed out.");
+    AtomS3.Lcd.println("Timed out.");
     return false;
 }
 
 void startWebServer() {  // Open the web service.  打开Web服务
     if (settingMode) {  // If the setting mode is on.  如果设置模式处于开启状态
-        M5.Lcd.print("Starting Web Server at: ");
-        M5.Lcd.print(
+        AtomS3.Lcd.print("Starting Web Server at: ");
+        AtomS3.Lcd.print(
             WiFi.softAPIP());  // Output AP address (you can change the address
                                // you want through apIP at the beginning).
                                // 输出AP地址(可通过开头的apIP更改自己想要的地址)
@@ -129,16 +129,17 @@ void startWebServer() {  // Open the web service.  打开Web服务
             });
         webServer.on("/setap", []() {
             String ssid = urlDecode(webServer.arg("ssid"));
-            M5.Lcd.printf("SSID: %s\n", ssid);
+            AtomS3.Lcd.printf("SSID: %s\n", ssid);
             String pass = urlDecode(webServer.arg("pass"));
-            M5.Lcd.printf("Password: %s\n\nWriting SSID to EEPROM...\n", pass);
+            AtomS3.Lcd.printf("Password: %s\n\nWriting SSID to EEPROM...\n",
+                              pass);
 
             // Store wifi config.  存储wifi配置信息
-            M5.Lcd.println("Writing Password to nvr...");
+            AtomS3.Lcd.println("Writing Password to nvr...");
             preferences.putString("WIFI_SSID", ssid);
             preferences.putString("WIFI_PASSWD", pass);
 
-            M5.Lcd.println("Write nvr done!");
+            AtomS3.Lcd.println("Write nvr done!");
             String s =
                 "<h1>Setup complete.</h1><p>device will be connected to \"";
             s += ssid;
@@ -154,8 +155,8 @@ void startWebServer() {  // Open the web service.  打开Web服务
             webServer.send(200, "text/html", makePage("AP mode", s));
         });
     } else {  // If the setting mode is off.  如果设置模式处于关闭状态
-        M5.Lcd.print("Starting Web Server at ");
-        M5.Lcd.println(WiFi.localIP());
+        AtomS3.Lcd.print("Starting Web Server at ");
+        AtomS3.Lcd.println(WiFi.localIP());
         webServer.on("/", []() {  // AP web interface settings.  AP网页界面设置
             String s =
                 "<h1>STA mode</h1><p><a href=\"/reset\">Reset Wi-Fi "
@@ -185,7 +186,7 @@ void setupMode() {
     int n = WiFi.scanNetworks();  // Store the number of wifi scanned into n.
                                   // 将扫描到的wifi个数存储到n中
     delay(100);
-    M5.Lcd.println("");
+    AtomS3.Lcd.println("");
     for (int i = 0; i < n; ++i) {  // Save each wifi name scanned to ssidList.
                                    // 将扫描到的每个wifi名称保存到ssidList中
         ssidList += "<option value=\"";
@@ -199,7 +200,7 @@ void setupMode() {
     WiFi.softAP(apSSID);  // Turn on Ap mode.  开启Ap模式
     WiFi.mode(WIFI_MODE_AP);  // Set WiFi to soft-AP mode. 设置WiFi为soft-AP模式
     startWebServer();         // Open the web service.  打开Web服务
-    M5.Lcd.printf("\nStarting Access Point at \"%s\"\n\n", apSSID);
+    AtomS3.Lcd.printf("\nStarting Access Point at \"%s\"\n\n", apSSID);
 }
 
 String makePage(String title, String contents) {

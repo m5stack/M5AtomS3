@@ -1,42 +1,38 @@
-#ifndef _M5ATOMS3_H_
-#define _M5ATOMS3_H_
+#ifndef _M5_ATOM_S3_H_
+#define _M5_ATOM_S3_H_
 
-#if defined(ESP32)
+#include "M5Unified.h"
+#include "M5GFX.h"
+#include "./utility/LedDisplay.h"
 
-#include <Arduino.h>
-#include <Wire.h>
-#include <FastLED.h>
-#include "M5Display.h"
-
-#include "utility/MPU6886.h"
-#include "utility/Button.h"
-#include "utility/LED_DisPlay.h"
-
+namespace m5 {
 class M5AtomS3 {
+   private:
+    bool _led_enable;
+    /* data */
    public:
-    M5AtomS3(/* args */);
-    ~M5AtomS3();
+    void begin(bool ledEnable = false);
+    void begin(m5::M5Unified::config_t cfg, bool ledEnable = false);
 
-    MPU6886 IMU;
-    // LCD
-    M5Display Lcd = M5Display();
+    M5GFX &Display = M5.Display;
+    M5GFX &Lcd     = Display;
 
-    LED_DisPlay dis;
+    IMU_Class &Imu     = M5.Imu;
+    Power_Class &Power = M5.Power;
+    Button_Class &BtnA = M5.BtnA;
 
-    Button Btn = Button(41, 25, true, true);
+    /// for internal I2C device
+    I2C_Class &In_I2C = m5::In_I2C;
 
-    void begin(bool LCDEnable = true, bool SerialEnable = true,
-               bool I2CEnable = false, bool LEDEnable = false);
-    void update();
+    /// for external I2C device (Port.A)
+    I2C_Class &Ex_I2C = m5::Ex_I2C;
+
+    LedDisplay dis;
+
+    void update(void);
 };
+}  // namespace m5
 
-extern M5AtomS3 M5;
-#define m5  M5
-#define lcd Lcd
-#define imu IMU
-#define Imu IMU
+extern m5::M5AtomS3 AtomS3;
 
-#else
-#error “This library only supports boards with ESP32 processor.”
-#endif
 #endif

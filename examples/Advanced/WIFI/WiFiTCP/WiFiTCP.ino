@@ -25,43 +25,43 @@ WiFiMulti WiFiMulti;
 
 void setup() {
     int sum = 0;
-    M5.begin();  // Init M5AtomS3.  初始化M5AtomS3
+    AtomS3.begin();  // Init M5AtomS3.  初始化M5AtomS3
     WiFiMulti.addAP(
         ssid,
         password);  // Add wifi configuration information.  添加wifi配置信息
-    M5.lcd.printf(
+    AtomS3.Lcd.printf(
         "Waiting connect to WiFi: %s ...",
         ssid);  // Serial port output format string.  串口输出格式化字符串
     while (WiFiMulti.run() !=
            WL_CONNECTED) {  // If the connection to wifi is not established
                             // successfully.  如果没有与wifi成功建立连接
-        M5.lcd.print(".");
+        AtomS3.Lcd.print(".");
         delay(1000);
         sum += 1;
-        if (sum == 8) M5.lcd.print("Conncet failed!");
+        if (sum == 8) AtomS3.Lcd.print("Conncet failed!");
     }
-    M5.lcd.println("\nWiFi connected");
-    M5.lcd.print("IP address: ");
-    M5.lcd.println(
+    AtomS3.Lcd.println("\nWiFi connected");
+    AtomS3.Lcd.print("IP address: ");
+    AtomS3.Lcd.println(
         WiFi.localIP());  // The serial port outputs the IP address
                           // of the M5AtomS3.  串口输出M5AtomS3的IP地址
     delay(500);
 }
 
 void loop() {
-    M5.lcd.setCursor(0, 40);
+    AtomS3.Lcd.setCursor(0, 40);
     const char* host = "www.baidu.com";  // Set the IP address or DNS of the TCP
                                          // server.  设置TCP服务器的ip或dns
     const uint16_t port =
         80;  // The port of the TCP server is specified.  设置TCP服务器的端口
-    M5.lcd.printf("Connecting to: %s\n", host);
+    AtomS3.Lcd.printf("Connecting to: %s\n", host);
 
     WiFiClient client;
     if (!client.connect(
             host,
             port)) {  // Connect to the server. 0 is returned if the
                       // connection fails. 连接服务器,若连接失败返回0
-        M5.lcd.print(
+        AtomS3.Lcd.print(
             "Connection failed.\nWaiting 5 seconds before retrying...\n");
         delay(5000);
         return;
@@ -74,7 +74,7 @@ void loop() {
     int maxloops = 0;
 
     // wait for the server's reply to become available
-    //等待服务器的回复
+    // 等待服务器的回复
     while (!client.available() && maxloops < 1000) {
         maxloops++;
         delay(1);  // delay 1 msec
@@ -84,14 +84,14 @@ void loop() {
         String line = client.readStringUntil(
             '\r');  // Read information from data received by the device until
                     // \r is read.  从设备接收到的数据中读取信息,直至读取到\r时
-        M5.lcd.println(line);  // String received by serial port output.
-                               // 串口输出接收到的字符串
+        AtomS3.Lcd.println(line);  // String received by serial port output.
+                                   // 串口输出接收到的字符串
     } else {
-        M5.lcd.println("client.available() timed out ");
+        AtomS3.Lcd.println("client.available() timed out ");
     }
-    M5.lcd.println("Closing connection.");
+    AtomS3.Lcd.println("Closing connection.");
     client.stop();
-    M5.lcd.println("Waiting 5 seconds before restarting...");
+    AtomS3.Lcd.println("Waiting 5 seconds before restarting...");
     delay(5000);
-    M5.lcd.fillRect(0, 40, 320, 220, BLACK);
+    AtomS3.Lcd.fillRect(0, 40, 320, 220, BLACK);
 }

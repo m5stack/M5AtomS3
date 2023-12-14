@@ -19,7 +19,7 @@
 #include "WiFi.h"
 
 void setup() {
-    M5.begin();               // Init M5AtomS3. 初始化 M5AtomS3
+    AtomS3.begin();           // Init M5AtomS3. 初始化 M5AtomS3
     WiFi.mode(WIFI_AP_STA);   // Set the wifi mode to the mode compatible with
                               // the AP and Station, and start intelligent
                               // network configuration
@@ -27,17 +27,17 @@ void setup() {
                               // 兼容模式,并开始智能配网
 
     // Wait for the M5AtomS3 to receive network information from the phone
-    //等待M5AtomS3接收到来自手机的配网信息
-    M5.Lcd.println(
+    // 等待M5AtomS3接收到来自手机的配网信息
+    AtomS3.Lcd.println(
         "\nWaiting for Phone SmartConfig.");  // Screen print format string.
                                               // 屏幕打印格式化字符串
     while (!WiFi.smartConfigDone()) {  // If the smart network is not completed.
                                        // 若智能配网没有完成
         delay(500);
-        M5.Lcd.print(".");
+        AtomS3.Lcd.print(".");
     }
-    M5.Lcd.println("\nSmartConfig received.");
-    M5.Lcd.println("Waiting for WiFi");
+    AtomS3.Lcd.println("\nSmartConfig received.");
+    AtomS3.Lcd.println("Waiting for WiFi");
     while (
         WiFi.status() !=
         WL_CONNECTED) {  // M5AtomS3 will connect automatically upon receipt of
@@ -45,14 +45,14 @@ void setup() {
                          // the connection is successful.
                          // 收到配网信息后M5AtomS3将自动连接，若连接成功将返回true
         delay(500);
-        M5.Lcd.print(".");
+        AtomS3.Lcd.print(".");
     }
-    M5.Lcd.print("\nWiFi Connect To: ");
-    M5.Lcd.println(WiFi.SSID());  // Output Network name.  输出网络名称
-    M5.Lcd.print("IP address: ");
-    M5.Lcd.println(WiFi.localIP());  // Output IP Address.  输出IP地址
-    M5.Lcd.print("RSSI: ");
-    M5.Lcd.println(WiFi.RSSI());  // Output signal strength.  输出信号强度
+    AtomS3.Lcd.print("\nWiFi Connect To: ");
+    AtomS3.Lcd.println(WiFi.SSID());  // Output Network name.  输出网络名称
+    AtomS3.Lcd.print("IP address: ");
+    AtomS3.Lcd.println(WiFi.localIP());  // Output IP Address.  输出IP地址
+    AtomS3.Lcd.print("RSSI: ");
+    AtomS3.Lcd.println(WiFi.RSSI());  // Output signal strength.  输出信号强度
 }
 
 void loop() {
