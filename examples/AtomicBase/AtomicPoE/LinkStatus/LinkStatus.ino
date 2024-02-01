@@ -32,7 +32,7 @@ void setup() {
 
     AtomS3.Display.setTextColor(GREEN);
     AtomS3.Display.setTextDatum(middle_center);
-    AtomS3.Display.setTextFont(&fonts::Orbitron_Light_24);
+    AtomS3.Display.setFont(&fonts::Orbitron_Light_24);
     AtomS3.Display.setTextSize(1);
     AtomS3.Display.drawString("PoE", AtomS3.Display.width() / 2, 20);
 

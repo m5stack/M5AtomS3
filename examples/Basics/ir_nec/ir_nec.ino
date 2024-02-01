@@ -33,7 +33,7 @@ void setup() {
     AtomS3.begin(cfg);
     AtomS3.Display.setTextColor(GREEN);
     AtomS3.Display.setTextDatum(middle_center);
-    AtomS3.Display.setTextFont(&fonts::FreeMono9pt7b);
+    AtomS3.Display.setFont(&fonts::FreeMono9pt7b);
     AtomS3.Display.setTextSize(1);
 
     IrSender.begin(DISABLE_LED_FEEDBACK);  // Start with IR_SEND_PIN as send pin
