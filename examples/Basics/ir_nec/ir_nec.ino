@@ -20,7 +20,8 @@
                                    // 269 bytes RAM if receiving functions are
                                    // not used.
 #define SEND_PWM_BY_TIMER
-#define IR_TX_PIN 4
+#define ATOMS3_IR_TX_PIN 4
+// #define ATOMS3R_IR_TX_PIN 47
 
 #include "M5AtomS3.h"
 #include <IRremote.hpp>  // include the library
@@ -37,7 +38,7 @@ void setup() {
     AtomS3.Display.setTextSize(1);
 
     IrSender.begin(DISABLE_LED_FEEDBACK);  // Start with IR_SEND_PIN as send pin
-    IrSender.setSendPin(IR_TX_PIN);
+    IrSender.setSendPin(ATOMS3_IR_TX_PIN);
 }
 
 void loop() {
@@ -49,14 +50,11 @@ void loop() {
     Serial.println();
 
     AtomS3.Display.clear();
-    AtomS3.Display.drawString("IR NEC SEND", AtomS3.Display.width() / 2,
-                              AtomS3.Display.height() / 2 - 40);
+    AtomS3.Display.drawString("IR NEC SEND", AtomS3.Display.width() / 2, AtomS3.Display.height() / 2 - 40);
 
-    AtomS3.Display.drawString("ADDR:0x1111", AtomS3.Display.width() / 2,
-                              AtomS3.Display.height() / 2);
+    AtomS3.Display.drawString("ADDR:0x1111", AtomS3.Display.width() / 2, AtomS3.Display.height() / 2);
 
-    AtomS3.Display.drawString("CMD:0x" + String(sCommand, HEX),
-                              AtomS3.Display.width() / 2,
+    AtomS3.Display.drawString("CMD:0x" + String(sCommand, HEX), AtomS3.Display.width() / 2,
                               AtomS3.Display.height() / 2 + 40);
 
     Serial.println(F("Send standard NEC with 16 bit address"));
