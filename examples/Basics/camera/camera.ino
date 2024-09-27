@@ -4,7 +4,17 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "M5AtomS3.h"
+/**
+ * @file camera.ino
+ * @brief M5AtomS3R Cam Web Server
+ * @version 1.0
+ * @date 2024-09-27
+ *
+ *
+ * @Hardwares: M5AtomS3R Cam
+ * @Platform Version: Arduino M5Stack Board Manager v2.1.2
+ */
+
 #include "camera_pins.h"
 #include <WiFi.h>
 #include "esp_camera.h"
@@ -58,7 +68,7 @@ void setup() {
     Serial.begin(115200);
     pinMode(POWER_GPIO_NUM, OUTPUT);
     digitalWrite(POWER_GPIO_NUM, LOW);
-
+    delay(500);
     esp_err_t err = esp_camera_init(&camera_config);
     if (err != ESP_OK) {
         Serial.println("Camera Init Fail");
@@ -67,6 +77,7 @@ void setup() {
     } else {
         Serial.println("Camera Init Success");
     }
+    delay(100);
 
 #ifdef STA_MODE
 
