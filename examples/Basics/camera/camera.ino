@@ -13,6 +13,7 @@
  *
  * @Hardwares: M5AtomS3R Cam
  * @Platform Version: Arduino M5Stack Board Manager v2.1.2
+ * @Notes: Remember to turn on PSRAM, otherwise the camera can't be initialized normally.
  */
 
 #include "camera_pins.h"
