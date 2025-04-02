@@ -1,24 +1,20 @@
 /*
- * SPDX-FileCopyrightText: 2024 M5Stack Technology CO LTD
+ * SPDX-FileCopyrightText: 2025 M5Stack Technology CO LTD
  *
  * SPDX-License-Identifier: MIT
  */
 
 /**
- * @file camera.ino
- * @brief M5AtomS3R Cam Web Server
- * @version 1.0
- * @date 2024-09-27
- *
- *
- * @Hardwares: M5AtomS3R Cam
- * @Platform Version: Arduino M5Stack Board Manager v2.1.2
- * @Notes: Remember to turn on PSRAM, otherwise the camera can't be initialized normally.
+ * @Hardwares: AtomS3R-CAM / AtomS3R-M12
+ * @Platform Version: Arduino M5Stack Board Manager v2.1.4
  */
 
 #include "camera_pins.h"
 #include <WiFi.h>
 #include "esp_camera.h"
+
+#define USE_ATOMS3R_CAM
+// #define USE_ATOMS3R_M12
 
 #define STA_MODE
 // #define AP_MODE
@@ -56,16 +52,25 @@ static camera_config_t camera_config = {
     .ledc_timer   = LEDC_TIMER_0,
     .ledc_channel = LEDC_CHANNEL_0,
 
-    .pixel_format  = PIXFORMAT_RGB565,
-    .frame_size    = FRAMESIZE_QVGA,
-    .jpeg_quality  = 0,
+#ifdef USE_ATOMS3R_CAM
+    .pixel_format = PIXFORMAT_RGB565,
+    .frame_size   = FRAMESIZE_QVGA,
+#endif
+
+#ifdef USE_ATOMS3R_M12
+    .pixel_format = PIXFORMAT_JPEG,
+    .frame_size   = FRAMESIZE_UXGA,
+#endif
+
+    .jpeg_quality  = 12,
     .fb_count      = 2,
     .fb_location   = CAMERA_FB_IN_PSRAM,
     .grab_mode     = CAMERA_GRAB_LATEST,
     .sccb_i2c_port = 0,
 };
 
-void setup() {
+void setup()
+{
     Serial.begin(115200);
     pinMode(POWER_GPIO_NUM, OUTPUT);
     digitalWrite(POWER_GPIO_NUM, LOW);
@@ -106,8 +111,7 @@ void setup() {
 #ifdef AP_MODE
     if (!WiFi.softAP(ssid, password)) {
         log_e("Soft AP creation failed.");
-        while (1)
-            ;
+        while (1);
     }
 
     Serial.println("AP SSID:");
@@ -123,7 +127,8 @@ void setup() {
     server.begin();
 }
 
-void loop() {
+void loop()
+{
     WiFiClient client = server.available();  // listen for incoming clients
     if (client) {                            // if you get a client,
         while (client.connected()) {         // loop while the client's connected
@@ -143,7 +148,8 @@ static const char* _STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" 
 static const char* _STREAM_BOUNDARY     = "\r\n--" PART_BOUNDARY "\r\n";
 static const char* _STREAM_PART         = "Content-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n";
 
-static void jpegStream(WiFiClient* client) {
+static void jpegStream(WiFiClient* client)
+{
     Serial.println("Image stream satrt");
     client->println("HTTP/1.1 200 OK");
     client->printf("Content-Type: %s\r\n", _STREAM_CONTENT_TYPE);
@@ -158,7 +164,14 @@ static void jpegStream(WiFiClient* client) {
     for (;;) {
         fb = esp_camera_fb_get();
         if (fb) {
+#ifdef USE_ATOMS3R_CAM
             frame2jpg(fb, 255, &out_jpg, &out_jpg_len);
+#endif
+
+#ifdef USE_ATOMS3R_M12
+            out_jpg     = fb->buf;
+            out_jpg_len = fb->len;
+#endif
 
             Serial.printf("pic size: %d\n", out_jpg_len);
             client->print(_STREAM_BOUNDARY);
@@ -187,11 +200,13 @@ static void jpegStream(WiFiClient* client) {
                 esp_camera_fb_return(fb);
                 fb = NULL;
             }
+#ifdef USE_ATOMS3R_CAM
             if (out_jpg) {
                 free(out_jpg);
                 out_jpg     = NULL;
                 out_jpg_len = 0;
             }
+#endif
         } else {
             Serial.println("Camera capture failed");
         }
@@ -202,6 +217,13 @@ client_exit:
         esp_camera_fb_return(fb);
         fb = NULL;
     }
+#ifdef USE_ATOMS3R_CAM
+    if (out_jpg) {
+        free(out_jpg);
+        out_jpg     = NULL;
+        out_jpg_len = 0;
+    }
+#endif
     client->stop();
     Serial.printf("Image stream end\r\n");
 }
