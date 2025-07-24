@@ -150,7 +150,7 @@ static const char* _STREAM_PART         = "Content-Type: image/jpeg\r\nContent-L
 
 static void jpegStream(WiFiClient* client)
 {
-    Serial.println("Image stream satrt");
+    Serial.println("Image stream start");
     client->println("HTTP/1.1 200 OK");
     client->printf("Content-Type: %s\r\n", _STREAM_CONTENT_TYPE);
     client->println("Content-Disposition: inline; filename=capture.jpg");
