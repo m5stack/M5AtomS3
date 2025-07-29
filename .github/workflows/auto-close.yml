@@ -1,0 +1,23 @@
+name: auto-close
+on:
+  issues:
+    types: [opened, reopened]
+  pull_request_target:
+    types: [opened, reopened]
+
+jobs:
+  close:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: peter-evans/close-issue@v3
+        if: github.event_name == 'issues'
+        with:
+          comment: |
+            This repository is no longer maintained.
+            Please use **M5GFX** and **M5Unified** instead.
+      - uses: peter-evans/close-pull@v3
+        if: github.event_name == 'pull_request_target'
+        with:
+          comment: |
+            This repository is no longer maintained.
+            Please submit changes to **M5GFX** / **M5Unified** instead.
