@@ -3,7 +3,7 @@
  * @author SeanKwok (shaoxiang@m5stack.com)
  * @brief M5AtomS3 Atomic PoE Base WebServer Test
  * @version 0.1
- * @date 6023-12-13
+ * @date 2023-12-13
  *
  *
  * @Hardwares: M5AtomS3 + Atomic PoE Base
