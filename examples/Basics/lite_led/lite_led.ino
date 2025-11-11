@@ -15,6 +15,7 @@
  * FastLED: https://github.com/FastLED/FastLED
  */
 
+#include <SPI.h>
 #include <M5AtomS3.h>
 
 void setup() {
